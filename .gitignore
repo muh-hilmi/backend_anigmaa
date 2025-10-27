@@ -51,3 +51,14 @@ firebase-credentials.json
 # Temporary files
 tmp/
 temp/
+
+# Build artifacts and binaries
+bootstrap
+lambda-function.zip
+*.zip
+
+# AWS artifacts
+.env.aws
+
+# Terraform providers
+.terraform/
