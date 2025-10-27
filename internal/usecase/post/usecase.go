@@ -1,0 +1,609 @@
+package post
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/anigmaa/backend/internal/domain/comment"
+	"github.com/anigmaa/backend/internal/domain/event"
+	"github.com/anigmaa/backend/internal/domain/interaction"
+	"github.com/anigmaa/backend/internal/domain/post"
+	"github.com/anigmaa/backend/internal/domain/user"
+	"github.com/google/uuid"
+)
+
+var (
+	ErrPostNotFound       = errors.New("post not found")
+	ErrCommentNotFound    = errors.New("comment not found")
+	ErrUnauthorized       = errors.New("unauthorized - not post/comment author")
+	ErrAlreadyLiked       = errors.New("already liked")
+	ErrNotLiked           = errors.New("not liked")
+	ErrAlreadyReposted    = errors.New("already reposted")
+	ErrNotReposted        = errors.New("not reposted")
+	ErrAlreadyBookmarked  = errors.New("already bookmarked")
+	ErrNotBookmarked      = errors.New("not bookmarked")
+	ErrCannotRepostOwn    = errors.New("cannot repost your own post")
+	ErrEventNotFound      = errors.New("attached event not found")
+)
+
+// Usecase handles post business logic
+type Usecase struct {
+	postRepo        post.Repository
+	commentRepo     comment.Repository
+	interactionRepo interaction.Repository
+	eventRepo       event.Repository
+	userRepo        user.Repository
+}
+
+// NewUsecase creates a new post usecase
+func NewUsecase(
+	postRepo post.Repository,
+	commentRepo comment.Repository,
+	interactionRepo interaction.Repository,
+	eventRepo event.Repository,
+	userRepo user.Repository,
+) *Usecase {
+	return &Usecase{
+		postRepo:        postRepo,
+		commentRepo:     commentRepo,
+		interactionRepo: interactionRepo,
+		eventRepo:       eventRepo,
+		userRepo:        userRepo,
+	}
+}
+
+// CreatePost creates a new post
+func (uc *Usecase) CreatePost(ctx context.Context, authorID uuid.UUID, req *post.CreatePostRequest) (*post.Post, error) {
+	// Verify author exists
+	_, err := uc.userRepo.GetByID(ctx, authorID)
+	if err != nil {
+		return nil, errors.New("author user not found")
+	}
+
+	// If event is attached, verify it exists
+	if req.AttachedEventID != nil {
+		_, err := uc.eventRepo.GetByID(ctx, *req.AttachedEventID)
+		if err != nil {
+			return nil, ErrEventNotFound
+		}
+	}
+
+	// Create post
+	now := time.Now()
+	newPost := &post.Post{
+		ID:              uuid.New(),
+		AuthorID:        authorID,
+		Content:         req.Content,
+		Type:            req.Type,
+		AttachedEventID: req.AttachedEventID,
+		Visibility:      req.Visibility,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LikesCount:      0,
+		CommentsCount:   0,
+		RepostsCount:    0,
+		SharesCount:     0,
+	}
+
+	if err := uc.postRepo.Create(ctx, newPost); err != nil {
+		return nil, err
+	}
+
+	// Add images if provided
+	if len(req.ImageURLs) > 0 {
+		images := make([]post.PostImage, len(req.ImageURLs))
+		for i, url := range req.ImageURLs {
+			images[i] = post.PostImage{
+				ID:       uuid.New(),
+				PostID:   newPost.ID,
+				ImageURL: url,
+				Order:    i,
+			}
+		}
+		if err := uc.postRepo.AddImages(ctx, images); err != nil {
+			// Log error but don't fail post creation
+		}
+	}
+
+	return newPost, nil
+}
+
+// GetPostByID gets a post by ID
+func (uc *Usecase) GetPostByID(ctx context.Context, postID uuid.UUID) (*post.Post, error) {
+	p, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+	return p, nil
+}
+
+// GetPostWithDetails gets a post with all details for a specific user
+func (uc *Usecase) GetPostWithDetails(ctx context.Context, postID, userID uuid.UUID) (*post.PostWithDetails, error) {
+	p, err := uc.postRepo.GetWithDetails(ctx, postID, userID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+	return p, nil
+}
+
+// UpdatePost updates a post
+func (uc *Usecase) UpdatePost(ctx context.Context, postID, userID uuid.UUID, req *post.UpdatePostRequest) (*post.Post, error) {
+	// Get existing post
+	existingPost, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	// Check if user is the author
+	if existingPost.AuthorID != userID {
+		return nil, ErrUnauthorized
+	}
+
+	// Update fields if provided
+	if req.Content != nil {
+		existingPost.Content = *req.Content
+	}
+	if req.Visibility != nil {
+		existingPost.Visibility = *req.Visibility
+	}
+
+	existingPost.UpdatedAt = time.Now()
+
+	// Save changes
+	if err := uc.postRepo.Update(ctx, existingPost); err != nil {
+		return nil, err
+	}
+
+	return existingPost, nil
+}
+
+// DeletePost deletes a post
+func (uc *Usecase) DeletePost(ctx context.Context, postID, userID uuid.UUID) error {
+	// Get existing post
+	existingPost, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Check if user is the author
+	if existingPost.AuthorID != userID {
+		return ErrUnauthorized
+	}
+
+	return uc.postRepo.Delete(ctx, postID)
+}
+
+// GetFeed gets a user's personalized feed
+func (uc *Usecase) GetFeed(ctx context.Context, userID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return uc.postRepo.GetFeed(ctx, userID, limit, offset)
+}
+
+// GetUserPosts gets posts by a specific user
+func (uc *Usecase) GetUserPosts(ctx context.Context, authorID, viewerID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
+	// Verify author exists
+	_, err := uc.userRepo.GetByID(ctx, authorID)
+	if err != nil {
+		return nil, errors.New("author user not found")
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return uc.postRepo.GetUserPosts(ctx, authorID, viewerID, limit, offset)
+}
+
+// ListPosts lists posts with filters
+func (uc *Usecase) ListPosts(ctx context.Context, filter *post.PostFilter, userID uuid.UUID) ([]post.PostWithDetails, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+	if filter.Limit > 100 {
+		filter.Limit = 100
+	}
+
+	return uc.postRepo.List(ctx, filter, userID)
+}
+
+// LikePost likes a post
+func (uc *Usecase) LikePost(ctx context.Context, postID, userID uuid.UUID) error {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Check if already liked
+	isLiked, err := uc.interactionRepo.IsLiked(ctx, userID, interaction.LikeablePost, postID)
+	if err != nil {
+		return err
+	}
+	if isLiked {
+		return ErrAlreadyLiked
+	}
+
+	// Create like
+	like := &interaction.Like{
+		ID:           uuid.New(),
+		UserID:       userID,
+		LikeableType: interaction.LikeablePost,
+		LikeableID:   postID,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := uc.interactionRepo.Like(ctx, like); err != nil {
+		return err
+	}
+
+	// Increment likes count
+	return uc.postRepo.IncrementLikes(ctx, postID)
+}
+
+// UnlikePost unlikes a post
+func (uc *Usecase) UnlikePost(ctx context.Context, postID, userID uuid.UUID) error {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Check if liked
+	isLiked, err := uc.interactionRepo.IsLiked(ctx, userID, interaction.LikeablePost, postID)
+	if err != nil {
+		return err
+	}
+	if !isLiked {
+		return ErrNotLiked
+	}
+
+	// Remove like
+	if err := uc.interactionRepo.Unlike(ctx, userID, interaction.LikeablePost, postID); err != nil {
+		return err
+	}
+
+	// Decrement likes count
+	return uc.postRepo.DecrementLikes(ctx, postID)
+}
+
+// RepostPost reposts a post
+func (uc *Usecase) RepostPost(ctx context.Context, userID uuid.UUID, req *post.RepostRequest) error {
+	// Check if post exists
+	originalPost, err := uc.postRepo.GetByID(ctx, req.PostID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Check if trying to repost own post
+	if originalPost.AuthorID == userID {
+		return ErrCannotRepostOwn
+	}
+
+	// Check if already reposted
+	isReposted, err := uc.interactionRepo.IsReposted(ctx, userID, req.PostID)
+	if err != nil {
+		return err
+	}
+	if isReposted {
+		return ErrAlreadyReposted
+	}
+
+	// Create repost
+	repost := &interaction.Repost{
+		ID:           uuid.New(),
+		UserID:       userID,
+		PostID:       req.PostID,
+		QuoteContent: req.QuoteContent,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := uc.interactionRepo.Repost(ctx, repost); err != nil {
+		return err
+	}
+
+	// Increment reposts count
+	return uc.postRepo.IncrementReposts(ctx, req.PostID)
+}
+
+// UndoRepost undoes a repost
+func (uc *Usecase) UndoRepost(ctx context.Context, postID, userID uuid.UUID) error {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Check if reposted
+	isReposted, err := uc.interactionRepo.IsReposted(ctx, userID, postID)
+	if err != nil {
+		return err
+	}
+	if !isReposted {
+		return ErrNotReposted
+	}
+
+	// Remove repost
+	if err := uc.interactionRepo.UndoRepost(ctx, userID, postID); err != nil {
+		return err
+	}
+
+	// Decrement reposts count
+	return uc.postRepo.DecrementReposts(ctx, postID)
+}
+
+// BookmarkPost bookmarks a post
+func (uc *Usecase) BookmarkPost(ctx context.Context, postID, userID uuid.UUID) error {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Check if already bookmarked
+	isBookmarked, err := uc.interactionRepo.IsBookmarked(ctx, userID, postID)
+	if err != nil {
+		return err
+	}
+	if isBookmarked {
+		return ErrAlreadyBookmarked
+	}
+
+	// Create bookmark
+	bookmark := &interaction.Bookmark{
+		ID:        uuid.New(),
+		UserID:    userID,
+		PostID:    postID,
+		CreatedAt: time.Now(),
+	}
+
+	return uc.interactionRepo.Bookmark(ctx, bookmark)
+}
+
+// RemoveBookmark removes a bookmark
+func (uc *Usecase) RemoveBookmark(ctx context.Context, postID, userID uuid.UUID) error {
+	// Check if bookmarked
+	isBookmarked, err := uc.interactionRepo.IsBookmarked(ctx, userID, postID)
+	if err != nil {
+		return err
+	}
+	if !isBookmarked {
+		return ErrNotBookmarked
+	}
+
+	return uc.interactionRepo.RemoveBookmark(ctx, userID, postID)
+}
+
+// GetBookmarks gets a user's bookmarked posts
+func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, offset int) ([]interaction.Bookmark, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return uc.interactionRepo.GetBookmarks(ctx, userID, limit, offset)
+}
+
+// SharePost tracks a post share
+func (uc *Usecase) SharePost(ctx context.Context, postID, userID uuid.UUID, platform *string) error {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return ErrPostNotFound
+	}
+
+	// Create share record
+	share := &interaction.Share{
+		ID:        uuid.New(),
+		UserID:    userID,
+		PostID:    postID,
+		Platform:  platform,
+		CreatedAt: time.Now(),
+	}
+
+	if err := uc.interactionRepo.Share(ctx, share); err != nil {
+		return err
+	}
+
+	// Increment shares count
+	return uc.postRepo.IncrementShares(ctx, postID)
+}
+
+// CreateComment creates a comment on a post
+func (uc *Usecase) CreateComment(ctx context.Context, authorID uuid.UUID, req *comment.CreateCommentRequest) (*comment.Comment, error) {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, req.PostID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	// If parent comment is specified, verify it exists
+	if req.ParentCommentID != nil {
+		_, err := uc.commentRepo.GetByID(ctx, *req.ParentCommentID)
+		if err != nil {
+			return nil, ErrCommentNotFound
+		}
+	}
+
+	// Create comment
+	now := time.Now()
+	newComment := &comment.Comment{
+		ID:              uuid.New(),
+		PostID:          req.PostID,
+		AuthorID:        authorID,
+		ParentCommentID: req.ParentCommentID,
+		Content:         req.Content,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LikesCount:      0,
+	}
+
+	if err := uc.commentRepo.Create(ctx, newComment); err != nil {
+		return nil, err
+	}
+
+	// Increment post comments count
+	if err := uc.postRepo.IncrementComments(ctx, req.PostID); err != nil {
+		// Log error but don't fail
+	}
+
+	return newComment, nil
+}
+
+// UpdateComment updates a comment
+func (uc *Usecase) UpdateComment(ctx context.Context, commentID, userID uuid.UUID, req *comment.UpdateCommentRequest) (*comment.Comment, error) {
+	// Get existing comment
+	existingComment, err := uc.commentRepo.GetByID(ctx, commentID)
+	if err != nil {
+		return nil, ErrCommentNotFound
+	}
+
+	// Check if user is the author
+	if existingComment.AuthorID != userID {
+		return nil, ErrUnauthorized
+	}
+
+	// Update content
+	existingComment.Content = req.Content
+	existingComment.UpdatedAt = time.Now()
+
+	// Save changes
+	if err := uc.commentRepo.Update(ctx, existingComment); err != nil {
+		return nil, err
+	}
+
+	return existingComment, nil
+}
+
+// DeleteComment deletes a comment
+func (uc *Usecase) DeleteComment(ctx context.Context, commentID, userID uuid.UUID) error {
+	// Get existing comment
+	existingComment, err := uc.commentRepo.GetByID(ctx, commentID)
+	if err != nil {
+		return ErrCommentNotFound
+	}
+
+	// Check if user is the author
+	if existingComment.AuthorID != userID {
+		return ErrUnauthorized
+	}
+
+	// Delete comment
+	if err := uc.commentRepo.Delete(ctx, commentID); err != nil {
+		return err
+	}
+
+	// Decrement post comments count
+	if err := uc.postRepo.DecrementComments(ctx, existingComment.PostID); err != nil {
+		// Log error but don't fail
+	}
+
+	return nil
+}
+
+// GetCommentsByPost gets comments for a post
+func (uc *Usecase) GetCommentsByPost(ctx context.Context, postID, userID uuid.UUID, limit, offset int) ([]comment.CommentWithDetails, error) {
+	// Check if post exists
+	_, err := uc.postRepo.GetByID(ctx, postID)
+	if err != nil {
+		return nil, ErrPostNotFound
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return uc.commentRepo.GetByPost(ctx, postID, userID, limit, offset)
+}
+
+// GetCommentReplies gets replies to a comment
+func (uc *Usecase) GetCommentReplies(ctx context.Context, parentCommentID, userID uuid.UUID, limit, offset int) ([]comment.CommentWithDetails, error) {
+	// Check if parent comment exists
+	_, err := uc.commentRepo.GetByID(ctx, parentCommentID)
+	if err != nil {
+		return nil, ErrCommentNotFound
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return uc.commentRepo.GetReplies(ctx, parentCommentID, userID, limit, offset)
+}
+
+// LikeComment likes a comment
+func (uc *Usecase) LikeComment(ctx context.Context, commentID, userID uuid.UUID) error {
+	// Check if comment exists
+	_, err := uc.commentRepo.GetByID(ctx, commentID)
+	if err != nil {
+		return ErrCommentNotFound
+	}
+
+	// Check if already liked
+	isLiked, err := uc.interactionRepo.IsLiked(ctx, userID, interaction.LikeableComment, commentID)
+	if err != nil {
+		return err
+	}
+	if isLiked {
+		return ErrAlreadyLiked
+	}
+
+	// Create like
+	like := &interaction.Like{
+		ID:           uuid.New(),
+		UserID:       userID,
+		LikeableType: interaction.LikeableComment,
+		LikeableID:   commentID,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := uc.interactionRepo.Like(ctx, like); err != nil {
+		return err
+	}
+
+	// Increment likes count
+	return uc.commentRepo.IncrementLikes(ctx, commentID)
+}
+
+// UnlikeComment unlikes a comment
+func (uc *Usecase) UnlikeComment(ctx context.Context, commentID, userID uuid.UUID) error {
+	// Check if comment exists
+	_, err := uc.commentRepo.GetByID(ctx, commentID)
+	if err != nil {
+		return ErrCommentNotFound
+	}
+
+	// Check if liked
+	isLiked, err := uc.interactionRepo.IsLiked(ctx, userID, interaction.LikeableComment, commentID)
+	if err != nil {
+		return err
+	}
+	if !isLiked {
+		return ErrNotLiked
+	}
+
+	// Remove like
+	if err := uc.interactionRepo.Unlike(ctx, userID, interaction.LikeableComment, commentID); err != nil {
+		return err
+	}
+
+	// Decrement likes count
+	return uc.commentRepo.DecrementLikes(ctx, commentID)
+}

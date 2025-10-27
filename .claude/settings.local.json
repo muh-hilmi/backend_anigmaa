@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/mailh/OneDrive/Desktop/FlutterApp/**)",
+      "Bash(xargs:*)",
+      "Bash(go version:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

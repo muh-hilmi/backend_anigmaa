@@ -1,0 +1,297 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/anigmaa/backend/config"
+	_ "github.com/anigmaa/backend/docs"
+	"github.com/anigmaa/backend/internal/delivery/http/handler"
+	"github.com/anigmaa/backend/internal/delivery/http/middleware"
+	"github.com/anigmaa/backend/internal/infrastructure/cache"
+	"github.com/anigmaa/backend/internal/infrastructure/database"
+	"github.com/anigmaa/backend/internal/repository/postgres"
+	"github.com/anigmaa/backend/internal/usecase/analytics"
+	"github.com/anigmaa/backend/internal/usecase/event"
+	"github.com/anigmaa/backend/internal/usecase/post"
+	"github.com/anigmaa/backend/internal/usecase/ticket"
+	"github.com/anigmaa/backend/internal/usecase/user"
+	"github.com/anigmaa/backend/pkg/jwt"
+	"github.com/anigmaa/backend/pkg/validator"
+	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+)
+
+// @title           Anigmaa Backend API
+// @version         1.0
+// @description     Backend API for Anigmaa event and social platform
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   API Support
+// @contact.email  support@anigmaa.com
+
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:8081
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+
+func main() {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Set Gin mode
+	if cfg.Server.Env == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// Initialize database connection
+	db, err := database.NewPostgresDB(&cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+	log.Println("✓ Connected to PostgreSQL database")
+
+	// Initialize Redis connection
+	redisClient, err := cache.NewRedisClient(&cfg.Redis)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisClient.Close()
+	log.Println("✓ Connected to Redis cache")
+
+	// Initialize validator
+	validate := validator.New()
+
+	// Initialize JWT manager
+	jwtManager := jwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.Expiration, cfg.JWT.RefreshExpiration)
+
+	// Initialize repositories
+	userRepo := postgres.NewUserRepository(db)
+	eventRepo := postgres.NewEventRepository(db)
+	postRepo := postgres.NewPostRepository(db)
+	commentRepo := postgres.NewCommentRepository(db)
+	ticketRepo := postgres.NewTicketRepository(db)
+	interactionRepo := postgres.NewInteractionRepository(db)
+
+	// Initialize use cases
+	userUsecase := user.NewUsecase(userRepo, jwtManager, cfg.Google.ClientID)
+	eventUsecase := event.NewUsecase(eventRepo, userRepo)
+	postUsecase := post.NewUsecase(postRepo, commentRepo, interactionRepo, eventRepo, userRepo)
+	ticketUsecase := ticket.NewUsecase(ticketRepo, eventRepo, userRepo)
+	analyticsUsecase := analytics.NewUsecase(eventRepo, ticketRepo)
+
+	// Initialize HTTP handlers
+	authHandler := handler.NewAuthHandler(userUsecase, validate)
+	userHandler := handler.NewUserHandler(userUsecase, validate)
+	eventHandler := handler.NewEventHandler(eventUsecase, validate)
+	postHandler := handler.NewPostHandler(postUsecase, validate)
+	ticketHandler := handler.NewTicketHandler(ticketUsecase, validate)
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
+
+	// Setup router
+	router := gin.Default()
+
+	// Apply global middleware
+	router.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
+	router.Use(middleware.Logger())
+	router.Use(middleware.Recovery())
+
+	// Swagger documentation
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Health check endpoints
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "anigmaa-backend",
+			"version": "1.0.0",
+		})
+	})
+
+	router.GET("/health/db", func(c *gin.Context) {
+		if err := db.Ping(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "error",
+				"error":  "database connection failed",
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"db":     "connected",
+		})
+	})
+
+	router.GET("/health/redis", func(c *gin.Context) {
+		ctx := context.Background()
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "error",
+				"error":  "redis connection failed",
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"redis":  "connected",
+		})
+	})
+
+	// API v1 routes
+	v1 := router.Group("/api/v1")
+	{
+		// Public routes (no auth required)
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/google", authHandler.LoginWithGoogle)
+			auth.POST("/forgot-password", authHandler.ForgotPassword)
+			auth.POST("/reset-password", authHandler.ResetPassword)
+			auth.POST("/verify-email", authHandler.VerifyEmail)
+		}
+
+		// Protected routes (auth required)
+		authMiddleware := middleware.JWTAuth(jwtManager)
+
+		// Auth routes (with authentication)
+		authProtected := v1.Group("/auth")
+		authProtected.Use(authMiddleware)
+		{
+			authProtected.POST("/logout", authHandler.Logout)
+			authProtected.POST("/refresh", authHandler.RefreshToken)
+		}
+
+		// User routes
+		users := v1.Group("/users")
+		users.Use(authMiddleware)
+		{
+			users.GET("/me", userHandler.GetMe)
+			users.PUT("/me", userHandler.UpdateMe)
+			users.PUT("/me/settings", userHandler.UpdateSettings)
+			users.GET("/:id", userHandler.GetUserByID)
+			users.GET("/:id/followers", userHandler.GetFollowers)
+			users.GET("/:id/following", userHandler.GetFollowing)
+			users.POST("/:id/follow", userHandler.FollowUser)
+			users.DELETE("/:id/follow", userHandler.UnfollowUser)
+			users.GET("/:id/stats", userHandler.GetUserStats)
+		}
+
+		// Event routes
+		events := v1.Group("/events")
+		{
+			events.GET("", eventHandler.GetEvents)
+			events.GET("/nearby", eventHandler.GetNearbyEvents)
+			events.GET("/:id", eventHandler.GetEventByID)
+			events.GET("/:id/attendees", eventHandler.GetEventAttendees)
+		}
+
+		eventsProtected := v1.Group("/events")
+		eventsProtected.Use(authMiddleware)
+		{
+			eventsProtected.POST("", eventHandler.CreateEvent)
+			eventsProtected.PUT("/:id", eventHandler.UpdateEvent)
+			eventsProtected.DELETE("/:id", eventHandler.DeleteEvent)
+			eventsProtected.POST("/:id/join", eventHandler.JoinEvent)
+			eventsProtected.DELETE("/:id/join", eventHandler.LeaveEvent)
+			eventsProtected.GET("/my-events", eventHandler.GetMyEvents)
+			eventsProtected.GET("/joined", eventHandler.GetJoinedEvents)
+		}
+
+		// Post routes
+		posts := v1.Group("/posts")
+		posts.Use(authMiddleware)
+		{
+			posts.GET("", postHandler.GetFeed)
+			posts.POST("", postHandler.CreatePost)
+			posts.GET("/:id", postHandler.GetPostByID)
+			posts.PUT("/:id", postHandler.UpdatePost)
+			posts.DELETE("/:id", postHandler.DeletePost)
+			posts.POST("/:id/like", postHandler.LikePost)
+			posts.DELETE("/:id/like", postHandler.UnlikePost)
+			posts.POST("/:id/repost", postHandler.RepostPost)
+			posts.DELETE("/:id/repost", postHandler.UndoRepost)
+			posts.POST("/:id/comments", postHandler.AddComment)
+			posts.GET("/:id/comments", postHandler.GetComments)
+			posts.PUT("/:id/comments/:comment_id", postHandler.UpdateComment)
+			posts.DELETE("/:id/comments/:comment_id", postHandler.DeleteComment)
+		}
+
+		// Ticket routes
+		tickets := v1.Group("/tickets")
+		tickets.Use(authMiddleware)
+		{
+			tickets.POST("/purchase", ticketHandler.PurchaseTicket)
+			tickets.GET("/my-tickets", ticketHandler.GetMyTickets)
+			tickets.GET("/:id", ticketHandler.GetTicketByID)
+			tickets.POST("/check-in", ticketHandler.CheckIn)
+			tickets.POST("/:id/cancel", ticketHandler.CancelTicket)
+		}
+
+		// Event tickets (host only)
+		v1.GET("/events/:id/tickets", authMiddleware, eventHandler.GetEventTickets)
+
+		// Analytics routes (host only)
+		analytics := v1.Group("/analytics")
+		analytics.Use(authMiddleware)
+		{
+			analytics.GET("/events/:id", analyticsHandler.GetEventAnalytics)
+			analytics.GET("/events/:id/transactions", analyticsHandler.GetEventTransactions)
+			analytics.GET("/host/revenue", analyticsHandler.GetHostRevenueSummary)
+			analytics.GET("/host/events", analyticsHandler.GetHostEventsList)
+		}
+	}
+
+	// Start server
+	addr := fmt.Sprintf(":%s", cfg.Server.Port)
+	server := &http.Server{
+		Addr:           addr,
+		Handler:        router,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
+	}
+
+	// Graceful shutdown
+	go func() {
+		log.Printf("🚀 Server starting on http://localhost%s", addr)
+		log.Printf("📝 Environment: %s", cfg.Server.Env)
+		log.Printf("📚 API Documentation: http://localhost%s/swagger/index.html", addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("🛑 Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("✓ Server exited gracefully")
+}
