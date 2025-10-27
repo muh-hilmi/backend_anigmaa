@@ -33,7 +33,7 @@ resource "aws_lambda_function" "anigmaa_backend" {
       REDIS_HOST            = aws_elasticache_replication_group.anigmaa_redis.primary_endpoint_address
       REDIS_PORT            = "6379"
       STORAGE_TYPE          = "s3"
-      AWS_REGION            = var.aws_region
+      # AWS_REGION is reserved key in Lambda - already set automatically
       AWS_BUCKET            = aws_s3_bucket.anigmaa_uploads.bucket
       ALLOWED_ORIGINS       = var.allowed_origins
       MIDTRANS_CLIENT_KEY   = var.midtrans_client_key

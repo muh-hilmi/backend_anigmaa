@@ -51,9 +51,13 @@ resource "aws_elasticache_replication_group" "anigmaa_redis" {
 }
 
 # Generate random password for Redis AUTH
+# Redis AUTH tokens only support alphanumeric characters (no special chars)
 resource "random_password" "redis_auth_token" {
   length  = 32
-  special = true
+  special = false
+  upper   = true
+  lower   = true
+  numeric = true
 }
 
 # Store Redis auth token in Parameter Store

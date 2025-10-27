@@ -38,7 +38,10 @@ resource "aws_lb_target_group" "anigmaa_backend" {
   }
 }
 
-# ALB Listener (HTTP)
+# ALB Listener (HTTP) - May already exist from previous deployment
+# Commented out to avoid "DuplicateListener" error if already created
+# Uncomment if needed for fresh deployment without existing ALB
+/*
 resource "aws_lb_listener" "anigmaa_backend" {
   load_balancer_arn = aws_lb.anigmaa_alb.arn
   port              = "80"
@@ -54,6 +57,7 @@ resource "aws_lb_listener" "anigmaa_backend" {
     }
   }
 }
+*/
 
 # ALB Listener (HTTPS) - Only create if certificate ARN is provided
 resource "aws_lb_listener" "anigmaa_backend_https" {

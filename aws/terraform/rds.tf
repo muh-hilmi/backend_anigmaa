@@ -10,7 +10,7 @@ resource "aws_db_subnet_group" "anigmaa_db_subnet_group" {
 
 # RDS Parameter Group
 resource "aws_db_parameter_group" "anigmaa_db_params" {
-  family = "postgres15"
+  family = "postgres16"
   name   = "${var.project_name}-db-params"
 
   parameter {
@@ -34,7 +34,7 @@ resource "aws_db_instance" "anigmaa_db" {
 
   # Engine
   engine                = "postgres"
-  engine_version        = "15.4"
+  engine_version        = "16.10"
   instance_class        = var.db_instance_class
 
   # Storage
