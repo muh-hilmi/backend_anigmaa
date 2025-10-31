@@ -372,13 +372,36 @@ func (uc *Usecase) DeleteAccount(ctx context.Context, userID uuid.UUID) error {
 }
 
 // GoogleTokenInfo represents the user info from Google ID token
+// FlexibleBool can unmarshal from both boolean and string values
+type FlexibleBool bool
+
+// UnmarshalJSON implements custom unmarshaling for FlexibleBool
+func (fb *FlexibleBool) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as boolean first
+	var b bool
+	if err := json.Unmarshal(data, &b); err == nil {
+		*fb = FlexibleBool(b)
+		return nil
+	}
+
+	// If that fails, try as string
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	// Convert string to bool
+	*fb = FlexibleBool(s == "true" || s == "True" || s == "TRUE" || s == "1")
+	return nil
+}
+
 type GoogleTokenInfo struct {
-	Aud           string `json:"aud"` // Audience
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
-	Name          string `json:"name"`
-	Picture       string `json:"picture"`
-	Sub           string `json:"sub"` // Google user ID
+	Aud           string       `json:"aud"` // Audience
+	Email         string       `json:"email"`
+	EmailVerified FlexibleBool `json:"email_verified"`
+	Name          string       `json:"name"`
+	Picture       string       `json:"picture"`
+	Sub           string       `json:"sub"` // Google user ID
 }
 
 // LoginWithGoogle authenticates a user using Google ID token
@@ -405,7 +428,7 @@ func (uc *Usecase) LoginWithGoogle(ctx context.Context, req *user.GoogleAuthRequ
 			UpdatedAt:       now,
 			LastLoginAt:     &now,
 			IsVerified:      true,
-			IsEmailVerified: googleInfo.EmailVerified,
+			IsEmailVerified: bool(googleInfo.EmailVerified),
 		}
 
 		if err := uc.userRepo.Create(ctx, newUser); err != nil {

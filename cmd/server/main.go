@@ -219,19 +219,30 @@ func main() {
 		posts := v1.Group("/posts")
 		posts.Use(authMiddleware)
 		{
-			posts.GET("", postHandler.GetFeed)
+			// Feed and create post
+			posts.GET("/feed", postHandler.GetFeed)
 			posts.POST("", postHandler.CreatePost)
+
+			// Repost (must be before /:id to avoid route conflict)
+			posts.POST("/repost", postHandler.RepostPost)
+
+			// Comments (must be before /:id to avoid route conflict)
+			posts.POST("/comments", postHandler.AddComment)
+			posts.PUT("/comments/:id", postHandler.UpdateComment)
+			posts.DELETE("/comments/:id", postHandler.DeleteComment)
+
+			// Post operations by ID
 			posts.GET("/:id", postHandler.GetPostByID)
 			posts.PUT("/:id", postHandler.UpdatePost)
 			posts.DELETE("/:id", postHandler.DeletePost)
+
+			// Post interactions
 			posts.POST("/:id/like", postHandler.LikePost)
-			posts.DELETE("/:id/like", postHandler.UnlikePost)
-			posts.POST("/:id/repost", postHandler.RepostPost)
-			posts.DELETE("/:id/repost", postHandler.UndoRepost)
-			posts.POST("/:id/comments", postHandler.AddComment)
+			posts.POST("/:id/unlike", postHandler.UnlikePost)
+			posts.POST("/:id/undo-repost", postHandler.UndoRepost)
+
+			// Get comments for a post
 			posts.GET("/:id/comments", postHandler.GetComments)
-			posts.PUT("/:id/comments/:comment_id", postHandler.UpdateComment)
-			posts.DELETE("/:id/comments/:comment_id", postHandler.DeleteComment)
 		}
 
 		// Ticket routes

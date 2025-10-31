@@ -32,7 +32,7 @@ func NewAnalyticsHandler(analyticsUsecase *analyticsUsecase.Usecase) *AnalyticsH
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Event ID" format(uuid)
-// @Success 200 {object} response.Response{data=analyticsUsecase.EventAnalytics}
+// @Success 200 {object} response.Response{data=analytics.EventAnalytics}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
@@ -90,7 +90,7 @@ func (h *AnalyticsHandler) GetEventAnalytics(c *gin.Context) {
 // @Param status query string false "Filter by transaction status (pending, success, failed, refunded)"
 // @Param limit query int false "Limit" default(50)
 // @Param offset query int false "Offset" default(0)
-// @Success 200 {object} response.Response{data=[]analyticsUsecase.TransactionDetail}
+// @Success 200 {object} response.Response{data=[]analytics.TransactionDetail}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
@@ -150,7 +150,7 @@ func (h *AnalyticsHandler) GetEventTransactions(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param period query string false "Time period (all, this_month, last_month, this_year)" default(all)
-// @Success 200 {object} response.Response{data=analyticsUsecase.HostRevenueSummary}
+// @Success 200 {object} response.Response{data=analytics.HostRevenueSummary}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 500 {object} response.Response
@@ -223,7 +223,7 @@ func (h *AnalyticsHandler) GetHostRevenueSummary(c *gin.Context) {
 // @Param status query string false "Filter by event status (upcoming, ongoing, completed, cancelled)"
 // @Param limit query int false "Limit" default(20)
 // @Param offset query int false "Offset" default(0)
-// @Success 200 {object} response.Response{data=[]analyticsUsecase.EventRevenueSummary}
+// @Success 200 {object} response.Response{data=[]analytics.EventRevenueSummary}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 500 {object} response.Response
