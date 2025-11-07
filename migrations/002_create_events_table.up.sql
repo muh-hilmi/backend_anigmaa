@@ -59,14 +59,14 @@ CREATE TABLE IF NOT EXISTS event_attendees (
 );
 
 -- Create indexes
-CREATE INDEX idx_events_host ON events(host_id);
-CREATE INDEX idx_events_category ON events(category);
-CREATE INDEX idx_events_status ON events(status);
-CREATE INDEX idx_events_start_time ON events(start_time);
-CREATE INDEX idx_events_location_geom ON events USING GIST(location_geom);
-CREATE INDEX idx_event_attendees_event ON event_attendees(event_id);
-CREATE INDEX idx_event_attendees_user ON event_attendees(user_id);
-CREATE INDEX idx_event_images_event ON event_images(event_id);
+CREATE INDEX IF NOT EXISTS idx_events_host ON events(host_id);
+CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
+CREATE INDEX IF NOT EXISTS idx_events_location_geom ON events USING GIST(location_geom);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_user ON event_attendees(user_id);
+CREATE INDEX IF NOT EXISTS idx_event_images_event ON event_images(event_id);
 
 -- Create trigger to update location_geom from lat/lng
 CREATE OR REPLACE FUNCTION update_location_geom()
@@ -77,9 +77,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_events_location_geom ON events;
 CREATE TRIGGER update_events_location_geom BEFORE INSERT OR UPDATE ON events
     FOR EACH ROW EXECUTE FUNCTION update_location_geom();
 
 -- Create trigger to update updated_at
+DROP TRIGGER IF EXISTS update_events_updated_at ON events;
 CREATE TRIGGER update_events_updated_at BEFORE UPDATE ON events
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

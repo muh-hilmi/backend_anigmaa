@@ -31,10 +31,10 @@ CREATE TABLE IF NOT EXISTS ticket_transactions (
 );
 
 -- Create indexes
-CREATE INDEX idx_tickets_user ON tickets(user_id);
-CREATE INDEX idx_tickets_event ON tickets(event_id);
-CREATE INDEX idx_tickets_attendance_code ON tickets(attendance_code);
-CREATE INDEX idx_tickets_status ON tickets(status);
-CREATE INDEX idx_ticket_transactions_ticket ON ticket_transactions(ticket_id);
-CREATE INDEX idx_ticket_transactions_transaction_id ON ticket_transactions(transaction_id);
-CREATE INDEX idx_ticket_transactions_status ON ticket_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_event ON tickets(event_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_attendance_code ON tickets(attendance_code);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_ticket_transactions_ticket ON ticket_transactions(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_transactions_transaction_id ON ticket_transactions(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_transactions_status ON ticket_transactions(status);

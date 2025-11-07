@@ -36,10 +36,10 @@ CREATE TABLE IF NOT EXISTS shares (
 );
 
 -- Create indexes
-CREATE INDEX idx_likes_user ON likes(user_id);
-CREATE INDEX idx_likes_likeable ON likes(likeable_type, likeable_id);
-CREATE INDEX idx_reposts_user ON reposts(user_id);
-CREATE INDEX idx_reposts_post ON reposts(post_id);
-CREATE INDEX idx_bookmarks_user ON bookmarks(user_id);
-CREATE INDEX idx_bookmarks_post ON bookmarks(post_id);
-CREATE INDEX idx_shares_post ON shares(post_id);
+CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_likes_likeable ON likes(likeable_type, likeable_id);
+CREATE INDEX IF NOT EXISTS idx_reposts_user ON reposts(user_id);
+CREATE INDEX IF NOT EXISTS idx_reposts_post ON reposts(post_id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_post ON bookmarks(post_id);
+CREATE INDEX IF NOT EXISTS idx_shares_post ON shares(post_id);

@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS event_attendees (
 );
 
 -- Create indexes
-CREATE INDEX idx_event_images_event ON event_images(event_id);
-CREATE INDEX idx_event_attendees_event ON event_attendees(event_id);
-CREATE INDEX idx_event_attendees_user ON event_attendees(user_id);
-CREATE INDEX idx_event_attendees_status ON event_attendees(status);
+CREATE INDEX IF NOT EXISTS idx_event_images_event ON event_images(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_user ON event_attendees(user_id);
+CREATE INDEX IF NOT EXISTS idx_event_attendees_status ON event_attendees(status);
