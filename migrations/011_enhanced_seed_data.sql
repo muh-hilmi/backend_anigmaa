@@ -71,8 +71,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) VALUES
 ('c50e8400-e29b-41d4-a716-446655440001', '750e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440001', 'Gass ikut dong! Tempatnya dimana nih?', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
 ('c50e8400-e29b-41d4-a716-446655440002', '750e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440002', 'Wah seru nih, boleh ajak temen ga?', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour'),
-('c50e8400-e29b-41d4-a716-446655440003', '750e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440000', 'Boleh banget! The more the merrier ☕', NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes'),
-('c50e8400-e29b-41d4-a716-446655440004', '750e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440003', 'Literally butuh caffeine fix! Count me in 🙌', NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '45 minutes');
+('c50e8400-e29b-41d4-a716-446655440003', '750e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440000', 'Boleh banget! Makin rame makin asik ☕', NOW() - INTERVAL '50 minutes', NOW() - INTERVAL '50 minutes'),
+('c50e8400-e29b-41d4-a716-446655440004', '750e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440003', 'Bener-bener butuh caffeine fix nih! Gw ikut ya 🙌', NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '45 minutes');
 
 -- Comments for Post 750e8400-e29b-41d4-a716-446655440021 (Gaming night)
 INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) VALUES
@@ -86,11 +86,11 @@ INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) V
 INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) VALUES
 ('c50e8400-e29b-41d4-a716-446655440010', '750e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440001', 'Budget berapa nih kira-kira?', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
 ('c50e8400-e29b-41d4-a716-446655440011', '750e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440002', 'Sekitar 100k-150k per orang, worth it banget!', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour'),
-('c50e8400-e29b-41d4-a716-446655440012', '750e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440003', 'Okeoke siap, need this after seminggu kerja 😭', NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '45 minutes');
+('c50e8400-e29b-41d4-a716-446655440012', '750e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440003', 'Okeoke siap, butuh banget ini abis seminggu kerja 😭', NOW() - INTERVAL '45 minutes', NOW() - INTERVAL '45 minutes');
 
 -- Comments for Post 750e8400-e29b-41d4-a716-446655440023 (Morning run)
 INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) VALUES
-('c50e8400-e29b-41d4-a716-446655440013', '750e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440000', 'Jam berapa nih? Gw bangun pagi struggle bgt 😅', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
+('c50e8400-e29b-41d4-a716-446655440013', '750e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440000', 'Jam berapa nih? Gw bangun pagi susah banget bro 😅', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
 ('c50e8400-e29b-41d4-a716-446655440014', '750e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440002', 'Start jam 6 pagi! Bangun jam 5 masih sempet kok', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour'),
 ('c50e8400-e29b-41d4-a716-446655440015', '750e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440004', 'Yuk lah, habis lari bisa sarapan bareng juga', NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '30 minutes');
 
@@ -105,17 +105,17 @@ INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) V
 INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at) VALUES
 -- Post 750e8400-e29b-41d4-a716-446655440000 (coffee meetup old)
 ('c50e8400-e29b-41d4-a716-446655440020', '750e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001', 'Asik banget acaranya! Kapan lagi nih?', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
-('c50e8400-e29b-41d4-a716-446655440021', '750e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440003', 'Next time gw ikut ya! Miss out soalnya lagi sakit 😢', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
+('c50e8400-e29b-41d4-a716-446655440021', '750e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440003', 'Next time gw ikut ya! Ga bisa dateng soalnya lagi sakit kemaren 😢', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
 -- Post 750e8400-e29b-41d4-a716-446655440001 (gaming epic)
-('c50e8400-e29b-41d4-a716-446655440022', '750e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440000', 'Tim gw menang savage wkwk, thanks for hosting!', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
+('c50e8400-e29b-41d4-a716-446655440022', '750e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440000', 'Tim gw menang savage wkwk, makasih udah ngadain!', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
 ('c50e8400-e29b-41d4-a716-446655440023', '750e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002', 'GG banget kemaren! Rematch kapan nih?', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
-('c50e8400-e29b-41d4-a716-446655440024', '750e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440003', 'So much fun! Count me in untuk next tournament', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
+('c50e8400-e29b-41d4-a716-446655440024', '750e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440003', 'Seru abis! Gw ikut lagi buat next tournament ya', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
 -- Post 750e8400-e29b-41d4-a716-446655440006 (kemang coffee)
 ('c50e8400-e29b-41d4-a716-446655440025', '750e8400-e29b-41d4-a716-446655440006', '550e8400-e29b-41d4-a716-446655440001', 'Nama kopinya apa? Penasaran mau nyoba!', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '3 hours'),
-('c50e8400-e29b-41d4-a716-446655440026', '750e8400-e29b-41d4-a716-446655440006', '550e8400-e29b-41d4-a716-446655440000', 'Namanya "Kopi Kulo" deket Kemang Raya! Must try ☕', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
+('c50e8400-e29b-41d4-a716-446655440026', '750e8400-e29b-41d4-a716-446655440006', '550e8400-e29b-41d4-a716-446655440000', 'Namanya "Kopi Kulo" deket Kemang Raya! Wajib coba sih ini ☕', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours'),
 -- Post 750e8400-e29b-41d4-a716-446655440008 (personal best run)
-('c50e8400-e29b-41d4-a716-446655440027', '750e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440001', 'Gila bro konsisten banget! Spill tips dong', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '4 hours'),
-('c50e8400-e29b-41d4-a716-446655440028', '750e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440002', 'Lari tiap hari aja bro, consistency is key 💪', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '3 hours');
+('c50e8400-e29b-41d4-a716-446655440027', '750e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440001', 'Gila bro konsisten banget! Spill tips-nya dong', NOW() - INTERVAL '4 hours', NOW() - INTERVAL '4 hours'),
+('c50e8400-e29b-41d4-a716-446655440028', '750e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440002', 'Lari tiap hari aja bro, yang penting konsisten 💪', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '3 hours');
 
 -- ============================================================================
 -- ADD MORE EVENT ATTENDEES (JOINED EVENTS)
