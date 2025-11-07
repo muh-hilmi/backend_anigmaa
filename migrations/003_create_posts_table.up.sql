@@ -83,24 +83,26 @@ CREATE TABLE IF NOT EXISTS shares (
 );
 
 -- Create indexes
-CREATE INDEX idx_posts_author ON posts(author_id);
-CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
-CREATE INDEX idx_posts_type ON posts(type);
-CREATE INDEX idx_posts_visibility ON posts(visibility);
-CREATE INDEX idx_post_images_post ON post_images(post_id);
-CREATE INDEX idx_comments_post ON comments(post_id);
-CREATE INDEX idx_comments_author ON comments(author_id);
-CREATE INDEX idx_comments_parent ON comments(parent_comment_id);
-CREATE INDEX idx_likes_user ON likes(user_id);
-CREATE INDEX idx_likes_likeable ON likes(likeable_type, likeable_id);
-CREATE INDEX idx_reposts_user ON reposts(user_id);
-CREATE INDEX idx_reposts_post ON reposts(post_id);
-CREATE INDEX idx_bookmarks_user ON bookmarks(user_id);
-CREATE INDEX idx_shares_post ON shares(post_id);
+CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_type ON posts(type);
+CREATE INDEX IF NOT EXISTS idx_posts_visibility ON posts(visibility);
+CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_author ON comments(author_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_comment_id);
+CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_likes_likeable ON likes(likeable_type, likeable_id);
+CREATE INDEX IF NOT EXISTS idx_reposts_user ON reposts(user_id);
+CREATE INDEX IF NOT EXISTS idx_reposts_post ON reposts(post_id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id);
+CREATE INDEX IF NOT EXISTS idx_shares_post ON shares(post_id);
 
 -- Create triggers to update updated_at
+DROP TRIGGER IF EXISTS update_posts_updated_at ON posts;
 CREATE TRIGGER update_posts_updated_at BEFORE UPDATE ON posts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_comments_updated_at ON comments;
 CREATE TRIGGER update_comments_updated_at BEFORE UPDATE ON comments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
