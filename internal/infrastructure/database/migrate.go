@@ -55,6 +55,7 @@ func RunMigrations(db *sqlx.DB, migrationsPath string) error {
 
 // createMigrationsTable creates a table to track executed migrations
 func createMigrationsTable(db *sqlx.DB) error {
+	// First, create the table if it doesn't exist
 	query := `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			id SERIAL PRIMARY KEY,
@@ -62,8 +63,53 @@ func createMigrationsTable(db *sqlx.DB) error {
 			executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	`
-	_, err := db.Exec(query)
-	return err
+	if _, err := db.Exec(query); err != nil {
+		return err
+	}
+
+	// Check if filename column exists (for backwards compatibility)
+	var columnExists bool
+	checkColumnQuery := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_name = 'schema_migrations'
+			AND column_name = 'filename'
+		)
+	`
+	if err := db.Get(&columnExists, checkColumnQuery); err != nil {
+		return fmt.Errorf("failed to check if filename column exists: %w", err)
+	}
+
+	// If the column doesn't exist, add it
+	if !columnExists {
+		// Check if table has existing records
+		var recordCount int
+		if err := db.Get(&recordCount, "SELECT COUNT(*) FROM schema_migrations"); err != nil {
+			return fmt.Errorf("failed to count existing migrations: %w", err)
+		}
+
+		if recordCount > 0 {
+			// If there are existing records without filenames, we need to clear them
+			// as we can't determine their original filenames
+			log.Printf("⚠️  Found %d existing migration records without filename column. Clearing them...", recordCount)
+			if _, err := db.Exec("TRUNCATE TABLE schema_migrations"); err != nil {
+				return fmt.Errorf("failed to clear existing migrations: %w", err)
+			}
+		}
+
+		// Now add the filename column
+		alterQuery := `
+			ALTER TABLE schema_migrations
+			ADD COLUMN filename VARCHAR(255) UNIQUE NOT NULL
+		`
+		if _, err := db.Exec(alterQuery); err != nil {
+			return fmt.Errorf("failed to add filename column: %w", err)
+		}
+		log.Println("✓ Added filename column to schema_migrations table")
+	}
+
+	return nil
 }
 
 // getMigrationFiles returns sorted list of migration files
