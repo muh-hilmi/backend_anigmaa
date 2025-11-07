@@ -100,7 +100,7 @@ func isMigrationExecuted(db *sqlx.DB, filename string) (bool, error) {
 }
 
 // recordMigration records that a migration has been executed
-func recordMigration(db *sqlx.DB, filename string) error {
+func recordMigration(db sqlx.Ext, filename string) error {
 	query := "INSERT INTO schema_migrations (filename) VALUES ($1)"
 	_, err := db.Exec(query, filename)
 	return err
