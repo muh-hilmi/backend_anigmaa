@@ -42,10 +42,6 @@ docs/
 .github/
 .gitlab-ci.yml
 
-# Deployment scripts
-AutoDeploy.ps1
-deploy.sh
-
 # Uploads directory (will be volume mounted)
 uploads/
 

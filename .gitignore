@@ -52,6 +52,9 @@ firebase-credentials.json
 tmp/
 temp/
 
+# Archived old seed data
+.archive_old_seeds/
+
 # Build artifacts and binaries
 bootstrap
 lambda-function.zip

@@ -109,20 +109,20 @@ services:
 
   # Database Migration (Optional - runs once then exits)
   # Uncomment if you want to run migrations automatically
-  # migrate:
-  #   image: migrate/migrate
-  #   container_name: anigmaa_migrate
-  #   volumes:
-  #     - ./migrations:/migrations
-  #   command:
-  #     - "-path=/migrations"
-  #     - "-database=postgres://postgres:postgres@postgres:5432/anigmaa?sslmode=disable"
-  #     - "up"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - anigmaa_network
+  migrate:
+    image: migrate/migrate
+    container_name: anigmaa_migrate
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://postgres:postgres@postgres:5432/anigmaa?sslmode=disable"
+      - "up"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - anigmaa_network
 
 volumes:
   postgres_data:

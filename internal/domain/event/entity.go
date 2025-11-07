@@ -29,15 +29,16 @@ const (
 type EventCategory string
 
 const (
-	CategoryCoffee  EventCategory = "coffee"
-	CategoryFood    EventCategory = "food"
-	CategoryGaming  EventCategory = "gaming"
-	CategorySports  EventCategory = "sports"
-	CategoryMusic   EventCategory = "music"
-	CategoryMovies  EventCategory = "movies"
-	CategoryStudy   EventCategory = "study"
-	CategoryArt     EventCategory = "art"
-	CategoryOther   EventCategory = "other"
+	CategoryMeetup     EventCategory = "meetup"
+	CategorySports     EventCategory = "sports"
+	CategoryWorkshop   EventCategory = "workshop"
+	CategoryNetworking EventCategory = "networking"
+	CategoryFood       EventCategory = "food"
+	CategoryCreative   EventCategory = "creative"
+	CategoryOutdoor    EventCategory = "outdoor"
+	CategoryFitness    EventCategory = "fitness"
+	CategoryLearning   EventCategory = "learning"
+	CategorySocial     EventCategory = "social"
 )
 
 // Event represents a hangout event
@@ -68,13 +69,13 @@ type Event struct {
 // EventWithDetails includes additional event information
 type EventWithDetails struct {
 	Event
-	HostName        string    `json:"host_name"`
-	HostAvatarURL   *string   `json:"host_avatar_url"`
-	ImageURLs       []string  `json:"image_urls"`
-	AttendeesCount  int       `json:"attendees_count"`
-	IsUserAttending bool      `json:"is_user_attending"`
-	IsUserHost      bool      `json:"is_user_host"`
-	Distance        *float64  `json:"distance,omitempty"` // Distance in km from user
+	HostName        string    `json:"host_name" db:"host_name"`
+	HostAvatarURL   *string   `json:"host_avatar_url" db:"host_avatar_url"`
+	ImageURLs       []string  `json:"image_urls" db:"-"`
+	AttendeesCount  int       `json:"attendees_count" db:"attendees_count"`
+	IsUserAttending bool      `json:"is_user_attending" db:"is_user_attending"`
+	IsUserHost      bool      `json:"is_user_host" db:"is_user_host"`
+	Distance        *float64  `json:"distance,omitempty" db:"distance"` // Distance in km from user
 }
 
 // EventAttendee represents an event attendee

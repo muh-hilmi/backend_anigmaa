@@ -36,8 +36,8 @@ func JWTAuth(jwtManager *jwt.JWTManager) gin.HandlerFunc {
 			return
 		}
 
-		// Set user ID in context
-		c.Set("user_id", claims.UserID)
+		// Set user ID in context (convert UUID to string)
+		c.Set("user_id", claims.UserID.String())
 		c.Set("email", claims.Email)
 
 		c.Next()

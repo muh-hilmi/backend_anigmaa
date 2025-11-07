@@ -62,7 +62,11 @@ func (r *eventRepository) GetByID(ctx context.Context, id uuid.UUID) (*event.Eve
 
 func (r *eventRepository) GetWithDetails(ctx context.Context, eventID, userID uuid.UUID) (*event.EventWithDetails, error) {
 	query := `
-		SELECT e.*, u.name as host_name, u.avatar_url as host_avatar_url,
+		SELECT e.id, e.host_id, e.title, e.description, e.category, e.start_time, e.end_time,
+			e.location_name, e.location_address, e.location_lat, e.location_lng,
+			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
+			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
+			u.name as host_name, u.avatar_url as host_avatar_url,
 			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') as attendees_count,
 			EXISTS(SELECT 1 FROM event_attendees WHERE event_id = e.id AND user_id = $2 AND status = 'confirmed') as is_user_attending,
 			(e.host_id = $2) as is_user_host
@@ -112,7 +116,11 @@ func (r *eventRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) ([]event.EventWithDetails, error) {
 	query := `
-		SELECT e.*, u.name as host_name, u.avatar_url as host_avatar_url,
+		SELECT e.id, e.host_id, e.title, e.description, e.category, e.start_time, e.end_time,
+			e.location_name, e.location_address, e.location_lat, e.location_lng,
+			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
+			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
+			u.name as host_name, u.avatar_url as host_avatar_url,
 			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
@@ -160,7 +168,11 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 
 func (r *eventRepository) GetByHost(ctx context.Context, hostID uuid.UUID, limit, offset int) ([]event.EventWithDetails, error) {
 	query := `
-		SELECT e.*, u.name as host_name, u.avatar_url as host_avatar_url,
+		SELECT e.id, e.host_id, e.title, e.description, e.category, e.start_time, e.end_time,
+			e.location_name, e.location_address, e.location_lat, e.location_lng,
+			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
+			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
+			u.name as host_name, u.avatar_url as host_avatar_url,
 			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
@@ -176,7 +188,11 @@ func (r *eventRepository) GetByHost(ctx context.Context, hostID uuid.UUID, limit
 
 func (r *eventRepository) GetJoinedEvents(ctx context.Context, userID uuid.UUID, limit, offset int) ([]event.EventWithDetails, error) {
 	query := `
-		SELECT e.*, u.name as host_name, u.avatar_url as host_avatar_url,
+		SELECT e.id, e.host_id, e.title, e.description, e.category, e.start_time, e.end_time,
+			e.location_name, e.location_address, e.location_lat, e.location_lng,
+			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
+			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
+			u.name as host_name, u.avatar_url as host_avatar_url,
 			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count,
 			true as is_user_attending
 		FROM events e
@@ -194,7 +210,11 @@ func (r *eventRepository) GetJoinedEvents(ctx context.Context, userID uuid.UUID,
 
 func (r *eventRepository) GetNearby(ctx context.Context, lat, lng, radiusKm float64, limit int) ([]event.EventWithDetails, error) {
 	query := `
-		SELECT e.*, u.name as host_name, u.avatar_url as host_avatar_url,
+		SELECT e.id, e.host_id, e.title, e.description, e.category, e.start_time, e.end_time,
+			e.location_name, e.location_address, e.location_lat, e.location_lng,
+			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
+			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
+			u.name as host_name, u.avatar_url as host_avatar_url,
 			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count,
 			ST_Distance(e.location_geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) / 1000 as distance
 		FROM events e

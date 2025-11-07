@@ -219,19 +219,22 @@ func main() {
 		posts := v1.Group("/posts")
 		posts.Use(authMiddleware)
 		{
-			// Feed and create post
+			// IMPORTANT: Static routes MUST come before parameterized routes
+			// Feed endpoint (must be first)
 			posts.GET("/feed", postHandler.GetFeed)
+
+			// Create post
 			posts.POST("", postHandler.CreatePost)
 
-			// Repost (must be before /:id to avoid route conflict)
+			// Repost endpoint
 			posts.POST("/repost", postHandler.RepostPost)
 
-			// Comments (must be before /:id to avoid route conflict)
+			// Comment endpoints
 			posts.POST("/comments", postHandler.AddComment)
-			posts.PUT("/comments/:id", postHandler.UpdateComment)
-			posts.DELETE("/comments/:id", postHandler.DeleteComment)
+			posts.PUT("/comments/:commentId", postHandler.UpdateComment)
+			posts.DELETE("/comments/:commentId", postHandler.DeleteComment)
 
-			// Post operations by ID
+			// Post operations by ID (AFTER all static routes)
 			posts.GET("/:id", postHandler.GetPostByID)
 			posts.PUT("/:id", postHandler.UpdatePost)
 			posts.DELETE("/:id", postHandler.DeletePost)

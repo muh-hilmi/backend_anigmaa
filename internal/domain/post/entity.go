@@ -32,7 +32,7 @@ type Post struct {
 	AuthorID        uuid.UUID      `json:"author_id" db:"author_id"`
 	Content         string         `json:"content" db:"content"`
 	Type            PostType       `json:"type" db:"type"`
-	AttachedEventID *uuid.UUID     `json:"attached_event_id,omitempty" db:"attached_event_id"`
+	AttachedEventID uuid.UUID      `json:"attached_event_id" db:"attached_event_id"`
 	OriginalPostID  *uuid.UUID     `json:"original_post_id,omitempty" db:"original_post_id"`
 	Visibility      PostVisibility `json:"visibility" db:"visibility"`
 	CreatedAt       time.Time      `json:"created_at" db:"created_at"`
@@ -70,13 +70,25 @@ type AuthorSummary struct {
 
 // EventSummary represents basic event information attached to a post
 type EventSummary struct {
-	ID          uuid.UUID `json:"id"`
-	Title       string    `json:"title"`
-	StartTime   time.Time `json:"start_time"`
-	Location    string    `json:"location"`
-	Category    string    `json:"category"`
-	IsFree      bool      `json:"is_free"`
-	Price       *float64  `json:"price,omitempty"`
+	ID              uuid.UUID `json:"id"`
+	Title           string    `json:"title"`
+	Description     string    `json:"description,omitempty"`
+	Category        string    `json:"category"`
+	StartTime       time.Time `json:"start_time"`
+	EndTime         time.Time `json:"end_time,omitempty"`
+	Location        string    `json:"location_name"`
+	LocationAddress string    `json:"location_address,omitempty"`
+	LocationLat     float64   `json:"location_lat,omitempty"`
+	LocationLng     float64   `json:"location_lng,omitempty"`
+	HostID          uuid.UUID `json:"host_id"`
+	HostName        string    `json:"host_name"`
+	HostAvatarURL   *string   `json:"host_avatar_url,omitempty"`
+	MaxAttendees    int       `json:"max_attendees,omitempty"`
+	IsFree          bool      `json:"is_free"`
+	Price           *float64  `json:"price,omitempty"`
+	Status          string    `json:"status,omitempty"`
+	Privacy         string    `json:"privacy,omitempty"`
+	ImageURLs       []string  `json:"image_urls,omitempty"`
 }
 
 // PostImage represents an image attached to a post
@@ -92,7 +104,7 @@ type CreatePostRequest struct {
 	Content         string         `json:"content" binding:"required,max=5000"`
 	Type            PostType       `json:"type" binding:"required"`
 	ImageURLs       []string       `json:"image_urls,omitempty" binding:"omitempty,max=4"`
-	AttachedEventID *uuid.UUID     `json:"attached_event_id,omitempty"`
+	AttachedEventID uuid.UUID      `json:"attached_event_id" binding:"required"`
 	Visibility      PostVisibility `json:"visibility" binding:"required"`
 	Hashtags        []string       `json:"hashtags,omitempty"`
 	Mentions        []string       `json:"mentions,omitempty"`
@@ -117,4 +129,59 @@ type PostFilter struct {
 	Visibility *PostVisibility `form:"visibility"`
 	Limit      int        `form:"limit"`
 	Offset     int        `form:"offset"`
+}
+
+// PostResponse represents the API response format for posts (Flutter-compatible)
+type PostResponse struct {
+	ID                 uuid.UUID      `json:"id"`
+	Author             AuthorSummary  `json:"author"`
+	Content            string         `json:"content"`
+	Type               PostType       `json:"type"`
+	ImageURLs          []string       `json:"image_urls,omitempty"`
+	AttachedEvent      *EventSummary  `json:"attached_event,omitempty"`
+	OriginalPost       *Post          `json:"original_post,omitempty"`
+	OriginalPostAuthor *AuthorSummary `json:"original_post_author,omitempty"`
+	Visibility         PostVisibility `json:"visibility"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+	LikesCount         int            `json:"likes_count"`
+	CommentsCount      int            `json:"comments_count"`
+	RepostsCount       int            `json:"reposts_count"`
+	SharesCount        int            `json:"shares_count"`
+	IsLikedByUser      bool           `json:"is_liked_by_current_user"`
+	IsRepostedByUser   bool           `json:"is_reposted_by_current_user"`
+	IsBookmarked       bool           `json:"is_bookmarked"`
+	Hashtags           []string       `json:"hashtags,omitempty"`
+	Mentions           []string       `json:"mentions,omitempty"`
+}
+
+// ToResponse converts PostWithDetails to Flutter-compatible response format
+func (p *PostWithDetails) ToResponse() PostResponse {
+	return PostResponse{
+		ID: p.ID,
+		Author: AuthorSummary{
+			ID:         p.AuthorID,
+			Name:       p.AuthorName,
+			AvatarURL:  p.AuthorAvatarURL,
+			IsVerified: p.AuthorIsVerified,
+		},
+		Content:            p.Content,
+		Type:               p.Type,
+		ImageURLs:          p.ImageURLs,
+		AttachedEvent:      p.AttachedEvent,
+		OriginalPost:       p.OriginalPost,
+		OriginalPostAuthor: p.OriginalPostAuthor,
+		Visibility:         p.Visibility,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
+		LikesCount:         p.LikesCount,
+		CommentsCount:      p.CommentsCount,
+		RepostsCount:       p.RepostsCount,
+		SharesCount:        p.SharesCount,
+		IsLikedByUser:      p.IsLikedByUser,
+		IsRepostedByUser:   p.IsRepostedByUser,
+		IsBookmarked:       p.IsBookmarkedByUser,
+		Hashtags:           p.Hashtags,
+		Mentions:           p.Mentions,
+	}
 }
