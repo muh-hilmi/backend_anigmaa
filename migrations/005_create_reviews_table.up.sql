@@ -11,10 +11,11 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 
 -- Create indexes
-CREATE INDEX idx_reviews_event ON reviews(event_id);
-CREATE INDEX idx_reviews_reviewer ON reviews(reviewer_id);
-CREATE INDEX idx_reviews_rating ON reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_reviews_event ON reviews(event_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer ON reviews(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
 
 -- Create trigger to update updated_at
+DROP TRIGGER IF EXISTS update_reviews_updated_at ON reviews;
 CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
