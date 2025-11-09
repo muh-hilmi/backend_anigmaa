@@ -23,8 +23,8 @@ func NewUserRepository(db *sqlx.DB) user.Repository {
 // Create creates a new user
 func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, name, bio, avatar_url, created_at, updated_at, is_verified, is_email_verified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO users (id, email, username, password_hash, name, bio, avatar_url, created_at, updated_at, is_verified, is_email_verified)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -35,7 +35,7 @@ func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 	u.IsEmailVerified = false
 
 	return r.db.QueryRowContext(ctx, query,
-		u.ID, u.Email, u.PasswordHash, u.Name, u.Bio, u.AvatarURL,
+		u.ID, u.Email, u.Username, u.PasswordHash, u.Name, u.Bio, u.AvatarURL,
 		u.CreatedAt, u.UpdatedAt, u.IsVerified, u.IsEmailVerified,
 	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
@@ -72,18 +72,34 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	return &u, nil
 }
 
+// GetByUsername gets a user by username
+func (r *userRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	var u user.User
+	query := `SELECT * FROM users WHERE username = $1`
+
+	err := r.db.GetContext(ctx, &u, query, username)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
 // Update updates a user
 func (r *userRepository) Update(ctx context.Context, u *user.User) error {
 	query := `
 		UPDATE users
-		SET name = $1, bio = $2, avatar_url = $3, updated_at = $4, last_login_at = $5, is_verified = $6, is_email_verified = $7
-		WHERE id = $8
+		SET name = $1, username = $2, bio = $3, avatar_url = $4, updated_at = $5, last_login_at = $6, is_verified = $7, is_email_verified = $8
+		WHERE id = $9
 	`
 
 	u.UpdatedAt = time.Now()
 
 	_, err := r.db.ExecContext(ctx, query,
-		u.Name, u.Bio, u.AvatarURL, u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
+		u.Name, u.Username, u.Bio, u.AvatarURL, u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
 	)
 
 	return err
@@ -135,6 +151,18 @@ func (r *userRepository) GetProfile(ctx context.Context, userID uuid.UUID) (*use
 	profile.Privacy = privacy
 
 	return &profile, nil
+}
+
+// GetProfileByUsername gets a complete user profile by username
+func (r *userRepository) GetProfileByUsername(ctx context.Context, username string) (*user.UserProfile, error) {
+	// Get user by username
+	u, err := r.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use GetProfile to get the complete profile
+	return r.GetProfile(ctx, u.ID)
 }
 
 // UpdateSettings updates user settings
