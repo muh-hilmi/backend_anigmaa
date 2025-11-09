@@ -232,6 +232,11 @@ func (uc *Usecase) ListEvents(ctx context.Context, filter *event.EventFilter) ([
 	return uc.eventRepo.List(ctx, filter)
 }
 
+// GetByHost gets events created by a host
+func (uc *Usecase) GetByHost(ctx context.Context, hostID uuid.UUID, limit, offset int) ([]event.EventWithDetails, error) {
+	return uc.GetEventsByHost(ctx, hostID, limit, offset)
+}
+
 // GetEventsByHost gets events created by a host
 func (uc *Usecase) GetEventsByHost(ctx context.Context, hostID uuid.UUID, limit, offset int) ([]event.EventWithDetails, error) {
 	// Verify host exists
