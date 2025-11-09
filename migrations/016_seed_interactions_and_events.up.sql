@@ -211,74 +211,79 @@ DO $$
 DECLARE
     event_record RECORD;
     user_ids UUID[];
+    num_users INT;
     target_attendees INT;
     capacity_pct FLOAT;
     attendee_user_id UUID;
 BEGIN
     -- Get all user IDs
     SELECT ARRAY_AGG(id) INTO user_ids FROM users;
+    num_users := COALESCE(array_length(user_ids, 1), 0);
 
-    -- Add attendees to events with different capacity levels
-    FOR event_record IN
-        SELECT id, host_id, max_attendees, created_at, start_time, price, is_free
-        FROM events
-        WHERE status = 'upcoming'
-        ORDER BY start_time ASC
-    LOOP
-        -- Determine capacity percentage for this event
-        -- 20% events = FULL (100% capacity)
-        -- 30% events = ALMOST FULL (80-95% capacity)
-        -- 50% events = AVAILABLE (10-70% capacity)
-
-        IF random() < 0.2 THEN
-            -- FULL: 100% capacity
-            capacity_pct := 1.0;
-        ELSIF random() < 0.5 THEN
-            -- ALMOST FULL: 80-95% capacity
-            capacity_pct := 0.8 + (random() * 0.15);
-        ELSE
-            -- AVAILABLE: 10-70% capacity
-            capacity_pct := 0.1 + (random() * 0.6);
-        END IF;
-
-        target_attendees := GREATEST(1, floor(event_record.max_attendees * capacity_pct)::INT);
-
-        -- Add attendees (random users, not including host)
-        FOR i IN 1..target_attendees
+    -- Only proceed if we have users
+    IF num_users > 0 THEN
+        -- Add attendees to events with different capacity levels
+        FOR event_record IN
+            SELECT id, host_id, max_attendees, created_at, start_time, price, is_free
+            FROM events
+            WHERE status = 'upcoming'
+            ORDER BY start_time ASC
         LOOP
-            attendee_user_id := user_ids[1 + floor(random() * array_length(user_ids, 1))::INT];
+            -- Determine capacity percentage for this event
+            -- 20% events = FULL (100% capacity)
+            -- 30% events = ALMOST FULL (80-95% capacity)
+            -- 50% events = AVAILABLE (10-70% capacity)
 
-            -- Skip if it's the host
-            IF attendee_user_id = event_record.host_id THEN
-                CONTINUE;
+            IF random() < 0.2 THEN
+                -- FULL: 100% capacity
+                capacity_pct := 1.0;
+            ELSIF random() < 0.5 THEN
+                -- ALMOST FULL: 80-95% capacity
+                capacity_pct := 0.8 + (random() * 0.15);
+            ELSE
+                -- AVAILABLE: 10-70% capacity
+                capacity_pct := 0.1 + (random() * 0.6);
             END IF;
 
-            BEGIN
-                INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
-                VALUES (
-                    uuid_generate_v4(),
-                    event_record.id,
-                    attendee_user_id,
-                    event_record.created_at + (random() * (event_record.start_time - event_record.created_at)),
-                    'confirmed'
-                )
-                ON CONFLICT (event_id, user_id) DO NOTHING;
-            EXCEPTION WHEN OTHERS THEN
-                CONTINUE;
-            END;
-        END LOOP;
+            target_attendees := GREATEST(1, floor(event_record.max_attendees * capacity_pct)::INT);
 
-        -- Update tickets_sold for paid events
-        IF NOT event_record.is_free THEN
-            UPDATE events
-            SET tickets_sold = (
-                SELECT COUNT(*)
-                FROM event_attendees
-                WHERE event_id = event_record.id AND status = 'confirmed'
-            )
-            WHERE id = event_record.id;
-        END IF;
-    END LOOP;
+            -- Add attendees (random users, not including host)
+            FOR i IN 1..target_attendees
+            LOOP
+                attendee_user_id := user_ids[1 + floor(random() * num_users)::INT];
+
+                -- Skip if it's the host or if user_id is NULL
+                IF attendee_user_id IS NULL OR attendee_user_id = event_record.host_id THEN
+                    CONTINUE;
+                END IF;
+
+                BEGIN
+                    INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
+                    VALUES (
+                        uuid_generate_v4(),
+                        event_record.id,
+                        attendee_user_id,
+                        event_record.created_at + (random() * (event_record.start_time - event_record.created_at)),
+                        'confirmed'
+                    )
+                    ON CONFLICT (event_id, user_id) DO NOTHING;
+                EXCEPTION WHEN OTHERS THEN
+                    CONTINUE;
+                END;
+            END LOOP;
+
+            -- Update tickets_sold for paid events
+            IF NOT event_record.is_free THEN
+                UPDATE events
+                SET tickets_sold = (
+                    SELECT COUNT(*)
+                    FROM event_attendees
+                    WHERE event_id = event_record.id AND status = 'confirmed'
+                )
+                WHERE id = event_record.id;
+            END IF;
+        END LOOP;
+    END IF;
 END $$;
 
 -- ============================================================================
@@ -339,36 +344,46 @@ DECLARE
     full_event_id UUID;
     host_id UUID;
     user_ids UUID[];
+    num_users INT;
+    max_attendees INT;
 BEGIN
     SELECT id INTO host_id FROM users ORDER BY random() LIMIT 1;
-    SELECT ARRAY_AGG(id) INTO user_ids FROM users WHERE id != host_id LIMIT 30;
+    SELECT ARRAY_AGG(id) INTO user_ids FROM users WHERE id != host_id;
 
-    -- Create a full paid event
-    INSERT INTO events (
-        id, host_id, title, description, category, start_time, end_time,
-        location_name, location_address, location_lat, location_lng,
-        max_attendees, price, is_free, status, privacy, ticketing_enabled, tickets_sold
-    ) VALUES (
-        uuid_generate_v4(), host_id,
-        'Workshop Premium: Advanced Web Development - SOLD OUT! 🔥',
-        'Workshop eksklusif untuk advanced web development. Materi lengkap, hands-on project, sertifikat, dan coffee break. Limited seats!',
-        'workshop',
-        NOW() + INTERVAL '7 days',
-        NOW() + INTERVAL '7 days 4 hours',
-        'CoWork Space Central',
-        'Jl. Gatot Subroto No. 123, Jakarta Selatan',
-        -6.2297, 106.8456,
-        30, 350000, FALSE, 'upcoming', 'public', TRUE, 30
-    ) RETURNING id INTO full_event_id;
+    -- Get the number of available users
+    num_users := COALESCE(array_length(user_ids, 1), 0);
 
-    -- Fill it up completely
-    FOR i IN 1..30 LOOP
-        INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
-        VALUES (
-            uuid_generate_v4(), full_event_id, user_ids[i],
-            NOW() - (random() * INTERVAL '5 days'), 'confirmed'
-        ) ON CONFLICT DO NOTHING;
-    END LOOP;
+    -- Only create this event if we have enough users
+    IF num_users >= 10 THEN
+        max_attendees := LEAST(30, num_users);
+
+        -- Create a full paid event
+        INSERT INTO events (
+            id, host_id, title, description, category, start_time, end_time,
+            location_name, location_address, location_lat, location_lng,
+            max_attendees, price, is_free, status, privacy, ticketing_enabled, tickets_sold
+        ) VALUES (
+            uuid_generate_v4(), host_id,
+            'Workshop Premium: Advanced Web Development - SOLD OUT! 🔥',
+            'Workshop eksklusif untuk advanced web development. Materi lengkap, hands-on project, sertifikat, dan coffee break. Limited seats!',
+            'workshop',
+            NOW() + INTERVAL '7 days',
+            NOW() + INTERVAL '7 days 4 hours',
+            'CoWork Space Central',
+            'Jl. Gatot Subroto No. 123, Jakarta Selatan',
+            -6.2297, 106.8456,
+            max_attendees, 350000, FALSE, 'upcoming', 'public', TRUE, max_attendees
+        ) RETURNING id INTO full_event_id;
+
+        -- Fill it up completely (but only up to the number of available users)
+        FOR i IN 1..max_attendees LOOP
+            INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
+            VALUES (
+                uuid_generate_v4(), full_event_id, user_ids[i],
+                NOW() - (random() * INTERVAL '5 days'), 'confirmed'
+            ) ON CONFLICT DO NOTHING;
+        END LOOP;
+    END IF;
 END $$;
 
 -- 2. ALMOST FULL FREE EVENT (for testing "Hampir Penuh" flow)
@@ -377,35 +392,47 @@ DECLARE
     almost_full_event_id UUID;
     host_id UUID;
     user_ids UUID[];
+    num_users INT;
+    max_attendees INT;
+    target_attendees INT;
 BEGIN
     SELECT id INTO host_id FROM users ORDER BY random() LIMIT 1;
-    SELECT ARRAY_AGG(id) INTO user_ids FROM users WHERE id != host_id LIMIT 48;
+    SELECT ARRAY_AGG(id) INTO user_ids FROM users WHERE id != host_id;
 
-    INSERT INTO events (
-        id, host_id, title, description, category, start_time, end_time,
-        location_name, location_address, location_lat, location_lng,
-        max_attendees, price, is_free, status, privacy, ticketing_enabled, tickets_sold
-    ) VALUES (
-        uuid_generate_v4(), host_id,
-        'Sunday Football Match - Tinggal 2 Slot! ⚽',
-        'Main futsal bareng di lapangan indoor. Gratis! Tinggal 2 slot lagi nih guys, buruan daftar!',
-        'sports',
-        NOW() + INTERVAL '3 days',
-        NOW() + INTERVAL '3 days 2 hours',
-        'Arena Futsal Indoor',
-        'Jl. Sport Center No. 45, Jakarta Barat',
-        -6.1751, 106.8272,
-        50, NULL, TRUE, 'upcoming', 'public', FALSE, 0
-    ) RETURNING id INTO almost_full_event_id;
+    -- Get the number of available users
+    num_users := COALESCE(array_length(user_ids, 1), 0);
 
-    -- Fill to 96% (48 out of 50)
-    FOR i IN 1..48 LOOP
-        INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
-        VALUES (
-            uuid_generate_v4(), almost_full_event_id, user_ids[i],
-            NOW() - (random() * INTERVAL '2 days'), 'confirmed'
-        ) ON CONFLICT DO NOTHING;
-    END LOOP;
+    -- Only create this event if we have enough users
+    IF num_users >= 10 THEN
+        max_attendees := GREATEST(50, num_users + 2);
+        target_attendees := LEAST(48, num_users);
+
+        INSERT INTO events (
+            id, host_id, title, description, category, start_time, end_time,
+            location_name, location_address, location_lat, location_lng,
+            max_attendees, price, is_free, status, privacy, ticketing_enabled, tickets_sold
+        ) VALUES (
+            uuid_generate_v4(), host_id,
+            'Sunday Football Match - Tinggal 2 Slot! ⚽',
+            'Main futsal bareng di lapangan indoor. Gratis! Tinggal 2 slot lagi nih guys, buruan daftar!',
+            'sports',
+            NOW() + INTERVAL '3 days',
+            NOW() + INTERVAL '3 days 2 hours',
+            'Arena Futsal Indoor',
+            'Jl. Sport Center No. 45, Jakarta Barat',
+            -6.1751, 106.8272,
+            max_attendees, NULL, TRUE, 'upcoming', 'public', FALSE, 0
+        ) RETURNING id INTO almost_full_event_id;
+
+        -- Fill to almost full (but only up to the number of available users)
+        FOR i IN 1..target_attendees LOOP
+            INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
+            VALUES (
+                uuid_generate_v4(), almost_full_event_id, user_ids[i],
+                NOW() - (random() * INTERVAL '2 days'), 'confirmed'
+            ) ON CONFLICT DO NOTHING;
+        END LOOP;
+    END IF;
 END $$;
 
 -- 3. AVAILABLE PAID EVENT (for testing "Masih Longgar" flow)
@@ -414,35 +441,45 @@ DECLARE
     available_event_id UUID;
     host_id UUID;
     user_ids UUID[];
+    num_users INT;
+    target_attendees INT;
 BEGIN
     SELECT id INTO host_id FROM users ORDER BY random() LIMIT 1;
-    SELECT ARRAY_AGG(id) INTO user_ids FROM users WHERE id != host_id LIMIT 12;
+    SELECT ARRAY_AGG(id) INTO user_ids FROM users WHERE id != host_id;
 
-    INSERT INTO events (
-        id, host_id, title, description, category, start_time, end_time,
-        location_name, location_address, location_lat, location_lng,
-        max_attendees, price, is_free, status, privacy, ticketing_enabled, tickets_sold
-    ) VALUES (
-        uuid_generate_v4(), host_id,
-        'Coffee & Networking - Masih Banyak Slot! ☕',
-        'Ngopi santai sambil networking. Meet new people, share stories, have fun! Early bird price hanya 25k.',
-        'networking',
-        NOW() + INTERVAL '5 days',
-        NOW() + INTERVAL '5 days 3 hours',
-        'Kopi Kenangan Premium',
-        'Jl. Sudirman No. 789, Jakarta Pusat',
-        -6.2088, 106.8456,
-        100, 25000, FALSE, 'upcoming', 'public', TRUE, 12
-    ) RETURNING id INTO available_event_id;
+    -- Get the number of available users
+    num_users := COALESCE(array_length(user_ids, 1), 0);
 
-    -- Fill to 12% (12 out of 100)
-    FOR i IN 1..12 LOOP
-        INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
-        VALUES (
-            uuid_generate_v4(), available_event_id, user_ids[i],
-            NOW() - (random() * INTERVAL '1 day'), 'confirmed'
-        ) ON CONFLICT DO NOTHING;
-    END LOOP;
+    -- Only create this event if we have enough users
+    IF num_users >= 5 THEN
+        target_attendees := LEAST(12, num_users);
+
+        INSERT INTO events (
+            id, host_id, title, description, category, start_time, end_time,
+            location_name, location_address, location_lat, location_lng,
+            max_attendees, price, is_free, status, privacy, ticketing_enabled, tickets_sold
+        ) VALUES (
+            uuid_generate_v4(), host_id,
+            'Coffee & Networking - Masih Banyak Slot! ☕',
+            'Ngopi santai sambil networking. Meet new people, share stories, have fun! Early bird price hanya 25k.',
+            'networking',
+            NOW() + INTERVAL '5 days',
+            NOW() + INTERVAL '5 days 3 hours',
+            'Kopi Kenangan Premium',
+            'Jl. Sudirman No. 789, Jakarta Pusat',
+            -6.2088, 106.8456,
+            100, 25000, FALSE, 'upcoming', 'public', TRUE, target_attendees
+        ) RETURNING id INTO available_event_id;
+
+        -- Fill with available attendees (but only up to the number of available users)
+        FOR i IN 1..target_attendees LOOP
+            INSERT INTO event_attendees (id, event_id, user_id, joined_at, status)
+            VALUES (
+                uuid_generate_v4(), available_event_id, user_ids[i],
+                NOW() - (random() * INTERVAL '1 day'), 'confirmed'
+            ) ON CONFLICT DO NOTHING;
+        END LOOP;
+    END IF;
 END $$;
 
 -- ============================================================================
