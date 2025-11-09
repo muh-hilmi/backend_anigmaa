@@ -147,7 +147,7 @@ func (h *ProfileHandler) GetProfileEvents(c *gin.Context) {
 	}
 
 	// Get user events
-	events, err := h.eventUsecase.GetByHost(c.Request.Context(), user.ID, limit, offset)
+	events, err := h.eventUsecase.GetEventsByHost(c.Request.Context(), user.ID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user events", err.Error())
 		return
