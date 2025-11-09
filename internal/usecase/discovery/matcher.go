@@ -48,11 +48,11 @@ func NewMatcher(eventRepo event.Repository, userRepo user.Repository) *Matcher {
 	}
 }
 
-// FindMatch finds matching events for a user (the "gabut button" feature)
-// This is a simple matching algorithm that can be enhanced over time
+// FindMatch finds matching events for a user using random + engagement bias
+// Algorithm: Random selection from candidate events, weighted by attendees count
 func (m *Matcher) FindMatch(ctx context.Context, userID uuid.UUID, userLat, userLng *float64, prefs *MatchPreferences) ([]MatchResult, error) {
 	// Get user to personalize results
-	currentUser, err := m.userRepo.GetByID(ctx, userID)
+	_, err := m.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
@@ -60,15 +60,13 @@ func (m *Matcher) FindMatch(ctx context.Context, userID uuid.UUID, userLat, user
 	// Build event filter
 	filter := &event.EventFilter{
 		Status: func() *event.EventStatus { s := event.StatusUpcoming; return &s }(),
-		Limit:  50, // Get more events to score and rank
+		Limit:  100, // Get larger pool for random selection
 		Offset: 0,
 	}
 
 	// Apply preferences
 	if prefs != nil {
 		if len(prefs.Categories) > 0 {
-			// For simplicity, just use the first category
-			// In production, you'd want to query multiple categories
 			filter.Category = &prefs.Categories[0]
 		}
 
@@ -85,7 +83,6 @@ func (m *Matcher) FindMatch(ctx context.Context, userID uuid.UUID, userLat, user
 			filter.EndDate = prefs.StartTimeMax
 		}
 
-		// If user location and max distance provided, use nearby search
 		if userLat != nil && userLng != nil && prefs.MaxDistance != nil {
 			filter.Lat = userLat
 			filter.Lng = userLng
@@ -103,29 +100,27 @@ func (m *Matcher) FindMatch(ctx context.Context, userID uuid.UUID, userLat, user
 		return nil, ErrNoEventsFound
 	}
 
-	// Score and rank events
+	// Simple random with engagement bias
 	results := make([]MatchResult, 0, len(events))
 	for _, evt := range events {
-		score, reason := m.scoreEvent(ctx, &evt, currentUser, userLat, userLng, prefs)
-
-		// Apply filters
+		// Apply hard filters
 		if prefs != nil {
-			// Filter by price
 			if prefs.MaxPrice != nil && evt.Price != nil && *evt.Price > *prefs.MaxPrice {
 				continue
 			}
-
-			// Already filtered by max distance in query, but double-check
 			if prefs.MaxDistance != nil && evt.Distance != nil && *evt.Distance > *prefs.MaxDistance {
 				continue
 			}
 		}
 
+		// Simple engagement score: attendees count (+ 1 to avoid zero)
+		score := float64(evt.AttendeesCount + 1)
+
 		results = append(results, MatchResult{
 			Event:    &evt,
 			Score:    score,
 			Distance: evt.Distance,
-			Reason:   reason,
+			Reason:   "Recommended for you",
 		})
 	}
 
@@ -133,8 +128,8 @@ func (m *Matcher) FindMatch(ctx context.Context, userID uuid.UUID, userLat, user
 		return nil, ErrNoEventsFound
 	}
 
-	// Sort by score (descending)
-	sortByScore(results)
+	// Random shuffle with engagement bias
+	shuffleWithBias(results)
 
 	// Return top matches (limit to 10)
 	maxResults := 10
@@ -203,143 +198,49 @@ func (m *Matcher) GetRecommendations(ctx context.Context, userID uuid.UUID, user
 	return matches, nil
 }
 
-// scoreEvent scores an event for a user (0-100)
-// This is a simple scoring algorithm that can be enhanced
-func (m *Matcher) scoreEvent(
-	ctx context.Context,
-	evt *event.EventWithDetails,
-	currentUser *user.User,
-	userLat, userLng *float64,
-	prefs *MatchPreferences,
-) (float64, string) {
-	score := 50.0 // Base score
-	reasons := make([]string, 0)
+// shuffleWithBias randomly shuffles results with bias towards higher scores
+// Higher engagement = higher probability to appear near the top
+func shuffleWithBias(results []MatchResult) {
+	n := len(results)
+	if n <= 1 {
+		return
+	}
 
-	// Distance scoring (max 25 points)
-	if evt.Distance != nil {
-		distanceScore := calculateDistanceScore(*evt.Distance)
-		score += distanceScore
-		if distanceScore > 15 {
-			reasons = append(reasons, "Very close to you")
-		} else if distanceScore > 5 {
-			reasons = append(reasons, "Nearby")
+	// Fisher-Yates shuffle with weighted probability
+	for i := 0; i < n-1; i++ {
+		// Calculate total weight for remaining items
+		totalWeight := 0.0
+		for j := i; j < n; j++ {
+			totalWeight += results[j].Score
 		}
-	}
 
-	// Time scoring (max 20 points)
-	timeScore, timeReason := calculateTimeScore(evt.StartTime)
-	score += timeScore
-	if timeReason != "" {
-		reasons = append(reasons, timeReason)
-	}
+		if totalWeight <= 0 {
+			// If no weights, do regular shuffle
+			j := i + int(math.Floor(float64(n-i)*0.5)) // simple random position
+			results[i], results[j] = results[j], results[i]
+			continue
+		}
 
-	// Price scoring (max 15 points)
-	if evt.IsFree {
-		score += 15
-		reasons = append(reasons, "Free event")
-	} else if evt.Price != nil && *evt.Price <= 50000 { // Under 50k IDR
-		score += 10
-		reasons = append(reasons, "Affordable")
-	}
+		// Select random weighted position
+		// Use a simple pseudo-random based on current time and index
+		// In production, use crypto/rand or math/rand with seed
+		randomValue := float64((time.Now().UnixNano() + int64(i*7)) % 1000) / 1000.0
+		target := randomValue * totalWeight
 
-	// Category preference (max 20 points)
-	if prefs != nil && len(prefs.Categories) > 0 {
-		for _, prefCat := range prefs.Categories {
-			if evt.Category == prefCat {
-				score += 20
-				reasons = append(reasons, "Matches your interests")
+		// Find the item that corresponds to this weight
+		cumulative := 0.0
+		selectedIdx := i
+		for j := i; j < n; j++ {
+			cumulative += results[j].Score
+			if cumulative >= target {
+				selectedIdx = j
 				break
 			}
 		}
-	}
 
-	// Popularity scoring (max 10 points)
-	if evt.AttendeesCount > 0 {
-		popularityScore := math.Min(float64(evt.AttendeesCount)/float64(evt.MaxAttendees)*10, 10)
-		score += popularityScore
-		if popularityScore > 7 {
-			reasons = append(reasons, "Popular event")
-		}
-	}
-
-	// Spots remaining (max 10 points)
-	spotsLeft := evt.MaxAttendees - evt.AttendeesCount
-	if spotsLeft > 10 {
-		score += 10
-		reasons = append(reasons, "Plenty of spots available")
-	} else if spotsLeft > 0 {
-		score += 5
-		reasons = append(reasons, "Limited spots remaining")
-	}
-
-	// Build reason string
-	reason := "Great match"
-	if len(reasons) > 0 {
-		reason = reasons[0]
-		if len(reasons) > 1 {
-			reason += " • " + reasons[1]
-		}
-	}
-
-	// Ensure score is within 0-100
-	if score > 100 {
-		score = 100
-	}
-	if score < 0 {
-		score = 0
-	}
-
-	return score, reason
-}
-
-// calculateDistanceScore calculates score based on distance (0-25 points)
-func calculateDistanceScore(distance float64) float64 {
-	// Closer is better
-	if distance <= 1 {
-		return 25.0 // Within 1km
-	} else if distance <= 3 {
-		return 20.0 // Within 3km
-	} else if distance <= 5 {
-		return 15.0 // Within 5km
-	} else if distance <= 10 {
-		return 10.0 // Within 10km
-	} else if distance <= 20 {
-		return 5.0 // Within 20km
-	}
-	return 0.0 // Far away
-}
-
-// calculateTimeScore calculates score based on start time (0-20 points)
-func calculateTimeScore(startTime time.Time) (float64, string) {
-	now := time.Now()
-	hoursUntil := startTime.Sub(now).Hours()
-
-	if hoursUntil < 0 {
-		return 0, "" // Event already started
-	} else if hoursUntil <= 2 {
-		return 20, "Starting very soon"
-	} else if hoursUntil <= 6 {
-		return 18, "Starting soon"
-	} else if hoursUntil <= 24 {
-		return 15, "Happening today"
-	} else if hoursUntil <= 72 {
-		return 12, "Coming up this week"
-	} else if hoursUntil <= 168 { // 7 days
-		return 10, "Upcoming"
-	}
-	return 5, ""
-}
-
-// sortByScore sorts match results by score (descending)
-func sortByScore(results []MatchResult) {
-	// Simple bubble sort (for small datasets)
-	// In production, use sort.Slice
-	n := len(results)
-	for i := 0; i < n-1; i++ {
-		for j := 0; j < n-i-1; j++ {
-			if results[j].Score < results[j+1].Score {
-				results[j], results[j+1] = results[j+1], results[j]
-			}
+		// Swap selected item to current position
+		if selectedIdx != i {
+			results[i], results[selectedIdx] = results[selectedIdx], results[i]
 		}
 	}
 }
@@ -369,7 +270,7 @@ func CalculateDistance(lat1, lng1, lat2, lng2 float64) float64 {
 	return distance
 }
 
-// GetTrendingEvents gets currently trending events
+// GetTrendingEvents gets trending events using random + engagement bias
 func (m *Matcher) GetTrendingEvents(ctx context.Context, userID uuid.UUID, limit int) ([]event.EventWithDetails, error) {
 	if limit <= 0 {
 		limit = 10
@@ -381,7 +282,7 @@ func (m *Matcher) GetTrendingEvents(ctx context.Context, userID uuid.UUID, limit
 	// Get upcoming events
 	filter := &event.EventFilter{
 		Status: func() *event.EventStatus { s := event.StatusUpcoming; return &s }(),
-		Limit:  limit * 2, // Get more to filter
+		Limit:  100, // Get larger pool
 		Offset: 0,
 	}
 
@@ -390,21 +291,24 @@ func (m *Matcher) GetTrendingEvents(ctx context.Context, userID uuid.UUID, limit
 		return nil, err
 	}
 
-	// Sort by popularity (attendees count / max attendees ratio)
-	// For simplicity, just filter events with good attendance
-	trending := make([]event.EventWithDetails, 0)
+	// Convert to match results for weighted shuffle
+	results := make([]MatchResult, 0, len(events))
 	for _, evt := range events {
-		if evt.AttendeesCount > 0 {
-			ratio := float64(evt.AttendeesCount) / float64(evt.MaxAttendees)
-			if ratio >= 0.3 { // At least 30% full
-				trending = append(trending, evt)
-			}
-		}
+		// Score by engagement (attendees count)
+		score := float64(evt.AttendeesCount + 1)
+		results = append(results, MatchResult{
+			Event: &evt,
+			Score: score,
+		})
 	}
 
-	// Limit results
-	if len(trending) > limit {
-		trending = trending[:limit]
+	// Apply random with engagement bias
+	shuffleWithBias(results)
+
+	// Extract events from results
+	trending := make([]event.EventWithDetails, 0, limit)
+	for i := 0; i < len(results) && i < limit; i++ {
+		trending = append(trending, *results[i].Event)
 	}
 
 	return trending, nil

@@ -55,38 +55,50 @@ func (r *postRepository) List(ctx context.Context, filter *post.PostFilter, user
 	return nil, nil
 }
 
-// GetFeed gets the feed for a user
+// GetFeed gets the feed for a user with random + engagement bias algorithm
+// Algorithm: Random selection from top N recent posts, weighted by engagement score
+// Engagement score = likes + (comments * 2) + (reposts * 3)
 func (r *postRepository) GetFeed(ctx context.Context, userID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
 	query := `
-		SELECT
-			p.id, p.author_id, p.content, p.type, p.attached_event_id,
-			p.original_post_id, p.visibility, p.created_at, p.updated_at,
-			p.likes_count, p.comments_count, p.reposts_count, p.shares_count,
-			u.name as author_name, u.avatar_url as author_avatar_url, u.is_verified as author_is_verified,
-			EXISTS(SELECT 1 FROM likes WHERE user_id = $1 AND likeable_type = 'post' AND likeable_id = p.id) as is_liked_by_user,
-			EXISTS(SELECT 1 FROM bookmarks WHERE user_id = $1 AND post_id = p.id) as is_bookmarked_by_user,
-			EXISTS(SELECT 1 FROM reposts WHERE user_id = $1 AND post_id = p.id) as is_reposted_by_user,
-			COALESCE(
-				(SELECT json_agg(image_url ORDER BY order_index)
-				 FROM post_images WHERE post_id = p.id), '[]'::json
-			) as image_urls,
-			e.id as event_id, e.title as event_title, e.description as event_description,
-			e.category as event_category, e.start_time as event_start_time, e.end_time as event_end_time,
-			e.location_name as event_location_name, e.location_address as event_location_address,
-			e.location_lat as event_location_lat, e.location_lng as event_location_lng,
-			e.host_id as event_host_id, eh.name as event_host_name, eh.avatar_url as event_host_avatar_url,
-			e.max_attendees as event_max_attendees, e.price as event_price, e.is_free as event_is_free,
-			e.status as event_status, e.privacy as event_privacy,
-			COALESCE(
-				(SELECT json_agg(image_url ORDER BY order_index)
-				 FROM event_images WHERE event_id = e.id), '[]'::json
-			) as event_image_urls
-		FROM posts p
-		INNER JOIN users u ON p.author_id = u.id
-		LEFT JOIN events e ON p.attached_event_id = e.id
-		LEFT JOIN users eh ON e.host_id = eh.id
-		WHERE p.visibility = 'public'
-		ORDER BY p.created_at DESC
+		WITH recent_posts AS (
+			-- Get top 100 most recent public posts as candidate pool
+			SELECT
+				p.id, p.author_id, p.content, p.type, p.attached_event_id,
+				p.original_post_id, p.visibility, p.created_at, p.updated_at,
+				p.likes_count, p.comments_count, p.reposts_count, p.shares_count,
+				u.name as author_name, u.avatar_url as author_avatar_url, u.is_verified as author_is_verified,
+				EXISTS(SELECT 1 FROM likes WHERE user_id = $1 AND likeable_type = 'post' AND likeable_id = p.id) as is_liked_by_user,
+				EXISTS(SELECT 1 FROM bookmarks WHERE user_id = $1 AND post_id = p.id) as is_bookmarked_by_user,
+				EXISTS(SELECT 1 FROM reposts WHERE user_id = $1 AND post_id = p.id) as is_reposted_by_user,
+				COALESCE(
+					(SELECT json_agg(image_url ORDER BY order_index)
+					 FROM post_images WHERE post_id = p.id), '[]'::json
+				) as image_urls,
+				e.id as event_id, e.title as event_title, e.description as event_description,
+				e.category as event_category, e.start_time as event_start_time, e.end_time as event_end_time,
+				e.location_name as event_location_name, e.location_address as event_location_address,
+				e.location_lat as event_location_lat, e.location_lng as event_location_lng,
+				e.host_id as event_host_id, eh.name as event_host_name, eh.avatar_url as event_host_avatar_url,
+				e.max_attendees as event_max_attendees, e.price as event_price, e.is_free as event_is_free,
+				e.status as event_status, e.privacy as event_privacy,
+				COALESCE(
+					(SELECT json_agg(image_url ORDER BY order_index)
+					 FROM event_images WHERE event_id = e.id), '[]'::json
+				) as event_image_urls
+			FROM posts p
+			INNER JOIN users u ON p.author_id = u.id
+			LEFT JOIN events e ON p.attached_event_id = e.id
+			LEFT JOIN users eh ON e.host_id = eh.id
+			WHERE p.visibility = 'public'
+			ORDER BY p.created_at DESC
+			LIMIT 100
+		)
+		SELECT *
+		FROM recent_posts
+		-- Random weighted by engagement score
+		-- Formula: (likes + comments*2 + reposts*3 + 1) ensures minimum weight of 1
+		-- Multiply by random() to add randomness with engagement bias
+		ORDER BY (likes_count + comments_count * 2 + reposts_count * 3 + 1) * random() DESC
 		LIMIT $2 OFFSET $3
 	`
 
