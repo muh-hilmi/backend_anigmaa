@@ -108,7 +108,7 @@ BEGIN
             comment_text := comment_texts[1 + floor(random() * array_length(comment_texts, 1))::INT];
 
             -- Insert comment
-            INSERT INTO comments (id, post_id, user_id, content, created_at, updated_at, likes_count)
+            INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at, likes_count)
             SELECT
                 comment_id,
                 post_record.id,
