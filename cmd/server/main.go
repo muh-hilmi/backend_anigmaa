@@ -109,6 +109,7 @@ func main() {
 	postHandler := handler.NewPostHandler(postUsecase, validate)
 	ticketHandler := handler.NewTicketHandler(ticketUsecase, validate)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
+	profileHandler := handler.NewProfileHandler(userUsecase, postUsecase, eventUsecase)
 
 	// Setup router
 	router := gin.Default()
@@ -275,6 +276,14 @@ func main() {
 			analytics.GET("/events/:id/transactions", analyticsHandler.GetEventTransactions)
 			analytics.GET("/host/revenue", analyticsHandler.GetHostRevenueSummary)
 			analytics.GET("/host/events", analyticsHandler.GetHostEventsList)
+		}
+
+		// Profile routes (public - no auth required for viewing profiles)
+		profile := v1.Group("/profile")
+		{
+			profile.GET("/:username", profileHandler.GetProfileByUsername)
+			profile.GET("/:username/posts", profileHandler.GetProfilePosts)
+			profile.GET("/:username/events", profileHandler.GetProfileEvents)
 		}
 	}
 

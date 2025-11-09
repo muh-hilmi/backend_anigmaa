@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/http"
 	"fmt"
+	"strings"
+	"regexp"
+	"math/rand"
 
 	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/anigmaa/backend/pkg/jwt"
@@ -16,13 +19,14 @@ import (
 )
 
 var (
-	ErrUserNotFound        = errors.New("user not found")
-	ErrEmailAlreadyExists  = errors.New("email already exists")
-	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrUnauthorized        = errors.New("unauthorized")
-	ErrAlreadyFollowing    = errors.New("already following this user")
-	ErrNotFollowing        = errors.New("not following this user")
-	ErrCannotFollowSelf    = errors.New("cannot follow yourself")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrEmailAlreadyExists     = errors.New("email already exists")
+	ErrUsernameAlreadyExists  = errors.New("username already exists")
+	ErrInvalidCredentials     = errors.New("invalid credentials")
+	ErrUnauthorized           = errors.New("unauthorized")
+	ErrAlreadyFollowing       = errors.New("already following this user")
+	ErrNotFollowing           = errors.New("not following this user")
+	ErrCannotFollowSelf       = errors.New("cannot follow yourself")
 )
 
 // Usecase handles user business logic
@@ -49,12 +53,67 @@ type AuthResponse struct {
 	ExpiresIn    int64       `json:"expires_in"` // seconds
 }
 
+// generateUsername creates a unique username from name
+func (uc *Usecase) generateUsername(ctx context.Context, name string, providedUsername *string) (string, error) {
+	// If username is provided, validate and use it
+	if providedUsername != nil && *providedUsername != "" {
+		// Check if username already exists
+		existing, _ := uc.userRepo.GetByUsername(ctx, *providedUsername)
+		if existing != nil {
+			return "", ErrUsernameAlreadyExists
+		}
+		return *providedUsername, nil
+	}
+
+	// Generate username from name
+	// Remove non-alphanumeric characters and convert to lowercase
+	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
+	baseUsername := reg.ReplaceAllString(name, "")
+	baseUsername = strings.ToLower(baseUsername)
+
+	// Limit to 20 characters
+	if len(baseUsername) > 20 {
+		baseUsername = baseUsername[:20]
+	}
+
+	// If baseUsername is empty, use "user"
+	if baseUsername == "" {
+		baseUsername = "user"
+	}
+
+	// Try to find a unique username
+	username := baseUsername
+	counter := 0
+	maxAttempts := 100
+
+	for counter < maxAttempts {
+		existing, _ := uc.userRepo.GetByUsername(ctx, username)
+		if existing == nil {
+			// Username is available
+			return username, nil
+		}
+
+		// Username taken, try with random number
+		counter++
+		username = fmt.Sprintf("%s%d", baseUsername, rand.Intn(10000))
+	}
+
+	// If still not found, use UUID suffix
+	return fmt.Sprintf("%s_%s", baseUsername, uuid.New().String()[:8]), nil
+}
+
 // Register registers a new user
 func (uc *Usecase) Register(ctx context.Context, req *user.RegisterRequest) (*AuthResponse, error) {
 	// Check if email already exists
 	existingUser, err := uc.userRepo.GetByEmail(ctx, req.Email)
 	if err == nil && existingUser != nil {
 		return nil, ErrEmailAlreadyExists
+	}
+
+	// Generate unique username
+	username, err := uc.generateUsername(ctx, req.Name, req.Username)
+	if err != nil {
+		return nil, err
 	}
 
 	// Hash password
@@ -68,6 +127,7 @@ func (uc *Usecase) Register(ctx context.Context, req *user.RegisterRequest) (*Au
 	newUser := &user.User{
 		ID:              uuid.New(),
 		Email:           req.Email,
+		Username:        username,
 		PasswordHash:    hashedPassword,
 		Name:            req.Name,
 		CreatedAt:       now,
@@ -180,9 +240,27 @@ func (uc *Usecase) GetProfile(ctx context.Context, userID uuid.UUID) (*user.User
 	return profile, nil
 }
 
+// GetProfileByUsername gets a user's complete profile by username
+func (uc *Usecase) GetProfileByUsername(ctx context.Context, username string) (*user.UserProfile, error) {
+	profile, err := uc.userRepo.GetProfileByUsername(ctx, username)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+	return profile, nil
+}
+
 // GetByID gets a user by ID
 func (uc *Usecase) GetByID(ctx context.Context, userID uuid.UUID) (*user.User, error) {
 	existingUser, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+	return existingUser, nil
+}
+
+// GetByUsername gets a user by username
+func (uc *Usecase) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	existingUser, err := uc.userRepo.GetByUsername(ctx, username)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
@@ -200,6 +278,14 @@ func (uc *Usecase) UpdateProfile(ctx context.Context, userID uuid.UUID, req *use
 	// Update fields if provided
 	if req.Name != nil {
 		existingUser.Name = *req.Name
+	}
+	if req.Username != nil {
+		// Check if username is already taken by another user
+		userByUsername, _ := uc.userRepo.GetByUsername(ctx, *req.Username)
+		if userByUsername != nil && userByUsername.ID != userID {
+			return nil, ErrUsernameAlreadyExists
+		}
+		existingUser.Username = *req.Username
 	}
 	if req.Bio != nil {
 		existingUser.Bio = req.Bio
@@ -417,10 +503,17 @@ func (uc *Usecase) LoginWithGoogle(ctx context.Context, req *user.GoogleAuthRequ
 
 	if err != nil {
 		// User doesn't exist, create new user
+		// Generate unique username
+		username, err := uc.generateUsername(ctx, googleInfo.Name, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate username: %w", err)
+		}
+
 		now := time.Now()
 		newUser := &user.User{
 			ID:              uuid.New(),
 			Email:           googleInfo.Email,
+			Username:        username,
 			PasswordHash:    "", // No password for Google auth users
 			Name:            googleInfo.Name,
 			AvatarURL:       &googleInfo.Picture,

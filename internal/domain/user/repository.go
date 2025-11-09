@@ -12,11 +12,13 @@ type Repository interface {
 	Create(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
+	GetByUsername(ctx context.Context, username string) (*User, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	// User Profile
 	GetProfile(ctx context.Context, userID uuid.UUID) (*UserProfile, error)
+	GetProfileByUsername(ctx context.Context, username string) (*UserProfile, error)
 	UpdateSettings(ctx context.Context, settings *UserSettings) error
 	UpdatePrivacy(ctx context.Context, privacy *UserPrivacy) error
 
