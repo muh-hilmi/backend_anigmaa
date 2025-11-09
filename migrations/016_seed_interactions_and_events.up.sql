@@ -19,6 +19,7 @@ DECLARE
     user_record RECORD;
     like_count INT;
     user_ids UUID[];
+    liker_user_id UUID;
 BEGIN
     -- Get all user IDs
     SELECT ARRAY_AGG(id) INTO user_ids FROM users;
@@ -32,20 +33,24 @@ BEGIN
         FOR i IN 1..LEAST(like_count, array_length(user_ids, 1))
         LOOP
             -- Pick random user (not the author)
-            BEGIN
-                INSERT INTO likes (id, user_id, likeable_type, likeable_id, created_at)
-                SELECT
-                    uuid_generate_v4(),
-                    user_ids[1 + floor(random() * array_length(user_ids, 1))::INT],
-                    'post',
-                    post_record.id,
-                    post_record.created_at + (random() * INTERVAL '7 days')
-                WHERE user_ids[1 + floor(random() * array_length(user_ids, 1))::INT] != post_record.author_id
-                ON CONFLICT DO NOTHING;
-            EXCEPTION WHEN OTHERS THEN
-                -- Skip if duplicate
-                CONTINUE;
-            END;
+            liker_user_id := user_ids[1 + floor(random() * array_length(user_ids, 1))::INT];
+
+            -- Only add like if user is not the post author
+            IF liker_user_id != post_record.author_id THEN
+                BEGIN
+                    INSERT INTO likes (id, user_id, likeable_type, likeable_id, created_at)
+                    VALUES (
+                        uuid_generate_v4(),
+                        liker_user_id,
+                        'post',
+                        post_record.id,
+                        post_record.created_at + (random() * INTERVAL '7 days')
+                    );
+                EXCEPTION WHEN OTHERS THEN
+                    -- Skip if duplicate
+                    CONTINUE;
+                END;
+            END IF;
         END LOOP;
     END LOOP;
 END $$;
@@ -60,6 +65,7 @@ DECLARE
     user_ids UUID[];
     comment_count INT;
     comment_id UUID;
+    comment_author_id UUID;
     comment_texts TEXT[] := ARRAY[
         'Wah seru banget ini! Aku ikut ya 🔥',
         'Keren! Kapan lagi nih ada acara kayak gini?',
@@ -106,18 +112,21 @@ BEGIN
         LOOP
             comment_id := uuid_generate_v4();
             comment_text := comment_texts[1 + floor(random() * array_length(comment_texts, 1))::INT];
+            comment_author_id := user_ids[1 + floor(random() * array_length(user_ids, 1))::INT];
 
-            -- Insert comment
-            INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at, likes_count)
-            SELECT
-                comment_id,
-                post_record.id,
-                user_ids[1 + floor(random() * array_length(user_ids, 1))::INT],
-                comment_text,
-                post_record.created_at + (random() * INTERVAL '5 days'),
-                post_record.created_at + (random() * INTERVAL '5 days'),
-                floor(random() * 20)::INT -- 0-20 likes per comment
-            WHERE user_ids[1 + floor(random() * array_length(user_ids, 1))::INT] != post_record.author_id;
+            -- Only insert if commenter is not the post author
+            IF comment_author_id != post_record.author_id THEN
+                INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at, likes_count)
+                VALUES (
+                    comment_id,
+                    post_record.id,
+                    comment_author_id,
+                    comment_text,
+                    post_record.created_at + (random() * INTERVAL '5 days'),
+                    post_record.created_at + (random() * INTERVAL '5 days'),
+                    floor(random() * 20)::INT
+                );
+            END IF;
 
             -- Add likes to some comments (30% chance)
             IF random() < 0.3 THEN
@@ -143,6 +152,7 @@ DECLARE
     post_record RECORD;
     user_ids UUID[];
     share_count INT;
+    sharer_user_id UUID;
 BEGIN
     -- Get all user IDs
     SELECT ARRAY_AGG(id) INTO user_ids FROM users;
@@ -154,18 +164,23 @@ BEGIN
 
         FOR i IN 1..share_count
         LOOP
-            BEGIN
-                INSERT INTO shares (id, user_id, post_id, created_at)
-                SELECT
-                    uuid_generate_v4(),
-                    user_ids[1 + floor(random() * array_length(user_ids, 1))::INT],
-                    post_record.id,
-                    post_record.created_at + (random() * INTERVAL '7 days')
-                WHERE user_ids[1 + floor(random() * array_length(user_ids, 1))::INT] != post_record.author_id
-                ON CONFLICT DO NOTHING;
-            EXCEPTION WHEN OTHERS THEN
-                CONTINUE;
-            END;
+            -- Pick random user (not the author)
+            sharer_user_id := user_ids[1 + floor(random() * array_length(user_ids, 1))::INT];
+
+            -- Only add share if user is not the post author
+            IF sharer_user_id != post_record.author_id THEN
+                BEGIN
+                    INSERT INTO shares (id, user_id, post_id, created_at)
+                    VALUES (
+                        uuid_generate_v4(),
+                        sharer_user_id,
+                        post_record.id,
+                        post_record.created_at + (random() * INTERVAL '7 days')
+                    );
+                EXCEPTION WHEN OTHERS THEN
+                    CONTINUE;
+                END;
+            END IF;
         END LOOP;
     END LOOP;
 END $$;
