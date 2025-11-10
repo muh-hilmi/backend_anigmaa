@@ -284,23 +284,23 @@ ON CONFLICT (user_id, likeable_type, likeable_id) DO NOTHING;
 
 -- Mailhilmi likes other posts
 INSERT INTO likes (user_id, likeable_type, likeable_id) VALUES
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000001-0000-0000-0000-000000000001'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000003-0000-0000-0000-000000000003'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000008-0000-0000-0000-000000000008'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000011-0000-0000-0000-000000000011'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000017-0000-0000-0000-000000000017'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000021-0000-0000-0000-000000000021'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000034-0000-0000-0000-000000000034'),
-('00000000-0000-0000-0000-000000000001', 'post', 'p0000042-0000-0000-0000-000000000042')
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000001-0000-0000-0000-000000000001'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000003-0000-0000-0000-000000000003'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000008-0000-0000-0000-000000000008'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000011-0000-0000-0000-000000000011'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000017-0000-0000-0000-000000000017'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000021-0000-0000-0000-000000000021'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000034-0000-0000-0000-000000000034'),
+('00000000-0000-0000-0000-000000000001', 'post', 'a0000042-0000-0000-0000-000000000042')
 ON CONFLICT (user_id, likeable_type, likeable_id) DO NOTHING;
 
 -- Mailhilmi comments on other posts
 INSERT INTO comments (post_id, author_id, parent_comment_id, content, created_at) VALUES
-('p0000008-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', NULL,
+('a0000008-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', NULL,
 'Congrats on the deployment! 🎉 What stack did you use?', NOW() - INTERVAL '1 day'),
-('p0000017-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000001', NULL,
+('a0000017-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000001', NULL,
 'Amazing news! Would love to hear more about your startup journey at my next meetup!', NOW() - INTERVAL '2 days'),
-('p0000034-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000001', NULL,
+('a0000034-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000001', NULL,
 'The missing semicolon strikes again 😂 Classic developer life!', NOW() - INTERVAL '16 hours')
 ON CONFLICT DO NOTHING;
 
@@ -361,15 +361,15 @@ INSERT INTO notifications (user_id, actor_id, type, title, message, link, metada
 ('00000000-0000-0000-0000-000000000001', '99999999-9999-9999-9999-999999999999', 'like_post',
 'Doni Rahman liked your post',
 'Liked: "Today I learned: PostgreSQL can be 10x faster..."',
-'/posts/m0000007-0000-0000-0000-000000000007',
-'{"post_id": "m0000007-0000-0000-0000-000000000007", "post_preview": "Today I learned: PostgreSQL can be 10x faster..."}',
+'/posts/a0000007-0000-0000-0000-000000000007',
+'{"post_id": "a0000007-0000-0000-0000-000000000007", "post_preview": "Today I learned: PostgreSQL can be 10x faster..."}',
 false, NOW() - INTERVAL '2 hours'),
 
 ('00000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'comment_post',
 'Rizki Maulana commented on your post',
 '"That''s insane improvement! EXPLAIN ANALYZE is your best friend"',
-'/posts/m0000007-0000-0000-0000-000000000007',
-'{"post_id": "m0000007-0000-0000-0000-000000000007", "comment_id": "m0000011-0000-0000-0000-000000000011"}',
+'/posts/a0000007-0000-0000-0000-000000000007',
+'{"post_id": "a0000007-0000-0000-0000-000000000007", "comment_id": "a0000011-0000-0000-0000-000000000011"}',
 false, NOW() - INTERVAL '6 hours'),
 
 ('00000000-0000-0000-0000-000000000001', '70707070-7070-7070-7070-707070707070', 'follow',
@@ -382,23 +382,23 @@ false, NOW() - INTERVAL '8 hours'),
 ('00000000-0000-0000-0000-000000000001', '99999999-9999-9999-9999-999999999999', 'event_reminder',
 'Event starting tomorrow',
 'Coffee & Code: Developer Meetup starts tomorrow at 2:00 PM',
-'/events/m0000002-0000-0000-0000-000000000002',
-'{"event_id": "m0000002-0000-0000-0000-000000000002", "event_title": "Coffee & Code: Developer Meetup"}',
+'/events/a0000002-0000-0000-0000-000000000002',
+'{"event_id": "a0000002-0000-0000-0000-000000000002", "event_title": "Coffee & Code: Developer Meetup"}',
 false, NOW() - INTERVAL '12 hours'),
 
 -- Older notifications (read)
 ('00000000-0000-0000-0000-000000000001', '50505050-5050-5050-5050-505050505050', 'like_post',
 'Yuni Astuti liked your post',
 'Liked: "Hot take: Learning one framework deeply is better..."',
-'/posts/m0000004-0000-0000-0000-000000000004',
-'{"post_id": "m0000004-0000-0000-0000-000000000004"}',
+'/posts/a0000004-0000-0000-0000-000000000004',
+'{"post_id": "a0000004-0000-0000-0000-000000000004"}',
 true, NOW() - INTERVAL '1 day'),
 
 ('00000000-0000-0000-0000-000000000001', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'comment_post',
 'Sarah Amelia commented on your post',
 '"Hot take indeed! But I think it depends on your role..."',
-'/posts/m0000004-0000-0000-0000-000000000004',
-'{"post_id": "m0000004-0000-0000-0000-000000000004", "comment_id": "m0000008-0000-0000-0000-000000000008"}',
+'/posts/a0000004-0000-0000-0000-000000000004',
+'{"post_id": "a0000004-0000-0000-0000-000000000004", "comment_id": "a0000008-0000-0000-0000-000000000008"}',
 true, NOW() - INTERVAL '5 days'),
 
 ('00000000-0000-0000-0000-000000000001', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'follow',
@@ -411,15 +411,15 @@ true, NOW() - INTERVAL '2 days'),
 ('00000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'like_post',
 'Rudi Hartono liked your post',
 'Liked: "Excited to announce my upcoming React + Go workshop!"',
-'/posts/m0000001-0000-0000-0000-000000000001',
-'{"post_id": "m0000001-0000-0000-0000-000000000001"}',
+'/posts/a0000001-0000-0000-0000-000000000001',
+'{"post_id": "a0000001-0000-0000-0000-000000000001"}',
 true, NOW() - INTERVAL '3 days'),
 
 ('00000000-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'comment_post',
 'Rizki Maulana commented on your post',
 '"Will you cover GraphQL too or just REST?"',
-'/posts/m0000001-0000-0000-0000-000000000001',
-'{"post_id": "m0000001-0000-0000-0000-000000000001", "comment_id": "m0000003-0000-0000-0000-000000000003"}',
+'/posts/a0000001-0000-0000-0000-000000000001',
+'{"post_id": "a0000001-0000-0000-0000-000000000001", "comment_id": "a0000003-0000-0000-0000-000000000003"}',
 true, NOW() - INTERVAL '2 days'),
 
 ('00000000-0000-0000-0000-000000000001', '99999999-9999-9999-9999-999999999999', 'community_post',
@@ -471,4 +471,3 @@ COMMIT;
 -- - Active in 3 communities (owner of 2, member of 1)
 -- - 11 notifications (4 unread, 7 read)
 -- - Likes and comments on other users' content
--- ============================================================================

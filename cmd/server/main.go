@@ -20,6 +20,7 @@ import (
 	"github.com/anigmaa/backend/internal/usecase/analytics"
 	"github.com/anigmaa/backend/internal/usecase/event"
 	"github.com/anigmaa/backend/internal/usecase/post"
+	"github.com/anigmaa/backend/internal/usecase/qna"
 	"github.com/anigmaa/backend/internal/usecase/ticket"
 	"github.com/anigmaa/backend/internal/usecase/user"
 	"github.com/anigmaa/backend/pkg/jwt"
@@ -94,6 +95,7 @@ func main() {
 	commentRepo := postgres.NewCommentRepository(db)
 	ticketRepo := postgres.NewTicketRepository(db)
 	interactionRepo := postgres.NewInteractionRepository(db)
+	qnaRepo := postgres.NewQnARepository(db)
 
 	// Initialize use cases
 	userUsecase := user.NewUsecase(userRepo, jwtManager, cfg.Google.ClientID)
@@ -101,6 +103,7 @@ func main() {
 	postUsecase := post.NewUsecase(postRepo, commentRepo, interactionRepo, eventRepo, userRepo)
 	ticketUsecase := ticket.NewUsecase(ticketRepo, eventRepo, userRepo)
 	analyticsUsecase := analytics.NewUsecase(eventRepo, ticketRepo)
+	qnaUsecase := qna.NewUsecase(qnaRepo, eventRepo)
 
 	// Initialize HTTP handlers
 	authHandler := handler.NewAuthHandler(userUsecase, validate)
@@ -110,6 +113,7 @@ func main() {
 	ticketHandler := handler.NewTicketHandler(ticketUsecase, validate)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
 	profileHandler := handler.NewProfileHandler(userUsecase, postUsecase, eventUsecase)
+	qnaHandler := handler.NewQnAHandler(qnaUsecase, validate)
 
 	// Setup router
 	router := gin.Default()
@@ -219,6 +223,10 @@ func main() {
 			eventsProtected.DELETE("/:id/join", eventHandler.LeaveEvent)
 			eventsProtected.GET("/my-events", eventHandler.GetMyEvents)
 			eventsProtected.GET("/joined", eventHandler.GetJoinedEvents)
+
+			// Event Q&A endpoints
+			eventsProtected.GET("/:id/qna", qnaHandler.GetEventQnA)
+			eventsProtected.POST("/:id/qna", qnaHandler.AskQuestion)
 		}
 
 		// Post routes
@@ -252,6 +260,10 @@ func main() {
 
 			// Get comments for a post
 			posts.GET("/:id/comments", postHandler.GetComments)
+
+			// Comment like/unlike
+			posts.POST("/:id/comments/:commentId/like", postHandler.LikeComment)
+			posts.POST("/:id/comments/:commentId/unlike", postHandler.UnlikeComment)
 		}
 
 		// Ticket routes
@@ -284,6 +296,16 @@ func main() {
 			profile.GET("/:username", profileHandler.GetProfileByUsername)
 			profile.GET("/:username/posts", profileHandler.GetProfilePosts)
 			profile.GET("/:username/events", profileHandler.GetProfileEvents)
+		}
+
+		// Q&A routes
+		qnaRoutes := v1.Group("/qna")
+		qnaRoutes.Use(authMiddleware)
+		{
+			qnaRoutes.POST("/:id/upvote", qnaHandler.UpvoteQuestion)
+			qnaRoutes.DELETE("/:id/upvote", qnaHandler.RemoveUpvote)
+			qnaRoutes.POST("/:id/answer", qnaHandler.AnswerQuestion)
+			qnaRoutes.DELETE("/:id", qnaHandler.DeleteQuestion)
 		}
 	}
 

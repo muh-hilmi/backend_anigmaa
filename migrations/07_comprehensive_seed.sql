@@ -663,4 +663,3 @@ COMMIT;
 -- - Comments: 42 (including nested comments)
 -- - Likes on Comments: 30+
 -- - Follows: 20
--- ============================================================================
