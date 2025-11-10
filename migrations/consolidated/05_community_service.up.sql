@@ -1,10 +1,9 @@
 -- ============================================================================
--- COMMUNITY & NOTIFICATION SERVICE DATABASE SCHEMA
+-- COMMUNITY SERVICE DATABASE SCHEMA
 -- ============================================================================
--- This schema contains:
+-- This schema contains all community-related tables:
 -- - communities: User communities/groups
 -- - community_members: Community membership tracking
--- - notifications: User notifications
 -- ============================================================================
 
 -- ============================================================================
@@ -16,20 +15,6 @@ CREATE TYPE community_privacy AS ENUM ('public', 'private', 'secret');
 
 -- Community role
 CREATE TYPE community_role AS ENUM ('owner', 'admin', 'moderator', 'member');
-
--- Notification type
-CREATE TYPE notification_type AS ENUM (
-    'like_post',
-    'comment_post',
-    'mention',
-    'follow',
-    'event_invitation',
-    'event_reminder',
-    'event_update',
-    'community_invitation',
-    'community_post',
-    'system'
-);
 
 -- ============================================================================
 -- COMMUNITIES TABLE
@@ -65,23 +50,6 @@ CREATE TABLE IF NOT EXISTS community_members (
 );
 
 -- ============================================================================
--- NOTIFICATIONS TABLE
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL,  -- References users(id) - recipient
-    actor_id UUID,  -- References users(id) - who triggered the notification
-    type notification_type NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT,
-    link VARCHAR(500),  -- Deep link to the content
-    metadata JSONB,  -- Additional data (post_id, event_id, etc.)
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- ============================================================================
 -- INDEXES
 -- ============================================================================
 
@@ -94,13 +62,6 @@ CREATE INDEX IF NOT EXISTS idx_communities_privacy ON communities(privacy);
 CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
 CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_community_members_role ON community_members(role);
-
--- Notifications indexes
-CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
-CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = false;
 
 -- ============================================================================
 -- TRIGGERS
@@ -146,12 +107,11 @@ CREATE TRIGGER update_community_members_count_trigger
 -- Created tables:
 -- 1. communities - User communities/groups
 -- 2. community_members - Membership tracking with roles
--- 3. notifications - User notification system
 --
 -- Features:
 -- - Community privacy levels (public, private, secret)
 -- - Role-based access (owner, admin, moderator, member)
--- - Comprehensive notification system
 -- - Auto-updating member counts
 -- - Optimized indexes for queries
+-- - Slug validation (lowercase alphanumeric + hyphens)
 -- ============================================================================

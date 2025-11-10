@@ -33,7 +33,8 @@ Data lengkap untuk user `mailhilmi`:
 2. `02_event_service.up.sql` - Event tables
 3. `03_post_service.up.sql` - Post tables
 4. `04_ticket_service.up.sql` - Ticket tables
-5. `05_community_notification_service.up.sql` - Communities & Notifications (BARU!)
+5. `05_community_service.up.sql` - Community tables (BARU!)
+6. `06_notification_service.up.sql` - Notification tables (BARU!)
 
 ## 🚀 Cara Menggunakan
 
@@ -45,7 +46,8 @@ psql -h localhost -U your_user -d your_database -f migrations/consolidated/01_us
 psql -h localhost -U your_user -d your_database -f migrations/consolidated/02_event_service.up.sql
 psql -h localhost -U your_user -d your_database -f migrations/consolidated/03_post_service.up.sql
 psql -h localhost -U your_user -d your_database -f migrations/consolidated/04_ticket_service.up.sql
-psql -h localhost -U your_user -d your_database -f migrations/consolidated/05_community_notification_service.up.sql
+psql -h localhost -U your_user -d your_database -f migrations/consolidated/05_community_service.up.sql
+psql -h localhost -U your_user -d your_database -f migrations/consolidated/06_notification_service.up.sql
 
 # 2. Jalankan seed data
 psql -h localhost -U your_user -d your_database -f db/seeds/01_comprehensive_seed.sql
@@ -81,18 +83,19 @@ npm run db:seed
 
 ### Fitur Baru: Communities & Notifications
 
-Migration `05_community_notification_service.up.sql` menambahkan:
-
-**Communities:**
+**Community Service** (`05_community_service.up.sql`):
 - Table `communities` untuk grup/komunitas
 - Table `community_members` untuk membership dengan roles (owner, admin, moderator, member)
 - Privacy levels: public, private, secret
-- Auto-updating member counts
+- Auto-updating member counts via triggers
+- Slug validation
 
-**Notifications:**
+**Notification Service** (`06_notification_service.up.sql`):
 - Table `notifications` untuk sistem notifikasi
 - Tipe notifikasi: like_post, comment_post, mention, follow, event_invitation, event_reminder, event_update, community_invitation, community_post, system
-- Metadata JSON untuk data tambahan
+- Actor tracking (who triggered the notification)
+- Metadata JSONB untuk data tambahan
+- Deep linking support
 - Optimized indexes untuk unread notifications
 
 ### User Profile
@@ -108,8 +111,9 @@ Database sudah handle user profile dengan lengkap:
 Untuk reset database:
 
 ```bash
-# Drop semua tables
-psql -h localhost -U your_user -d your_database -f migrations/consolidated/05_community_notification_service.down.sql
+# Drop semua tables (reverse order)
+psql -h localhost -U your_user -d your_database -f migrations/consolidated/06_notification_service.down.sql
+psql -h localhost -U your_user -d your_database -f migrations/consolidated/05_community_service.down.sql
 psql -h localhost -U your_user -d your_database -f migrations/consolidated/04_ticket_service.down.sql
 psql -h localhost -U your_user -d your_database -f migrations/consolidated/03_post_service.down.sql
 psql -h localhost -U your_user -d your_database -f migrations/consolidated/02_event_service.down.sql
