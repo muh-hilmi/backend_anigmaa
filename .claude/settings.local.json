@@ -37,7 +37,10 @@
       "Bash(docker-compose exec:*)",
       "Bash(docker compose:*)",
       "Bash(go build:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(cp:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

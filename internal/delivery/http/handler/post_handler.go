@@ -639,6 +639,11 @@ func (h *PostHandler) GetComments(c *gin.Context) {
 		return
 	}
 
+	// Ensure we return empty array instead of null
+	if comments == nil {
+		comments = []comment.CommentWithDetails{}
+	}
+
 	response.Success(c, http.StatusOK, "Comments retrieved successfully", comments)
 }
 
@@ -764,4 +769,113 @@ func (h *PostHandler) DeleteComment(c *gin.Context) {
 	}
 
 	response.Success(c, http.StatusOK, "Comment deleted successfully", nil)
+}
+
+// LikeComment godoc
+// @Summary Like a comment
+// @Description Like a comment on a post
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param postId path string true "Post ID" format(uuid)
+// @Param commentId path string true "Comment ID" format(uuid)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /posts/{postId}/comments/{commentId}/like [post]
+func (h *PostHandler) LikeComment(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse comment ID from path
+	commentIDStr := c.Param("commentId")
+	commentID, err := uuid.Parse(commentIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid comment ID", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.postUsecase.LikeComment(c.Request.Context(), commentID, userID); err != nil {
+		if err == postUsecase.ErrCommentNotFound {
+			response.NotFound(c, "Comment not found")
+			return
+		}
+		if err == postUsecase.ErrAlreadyLiked {
+			response.Conflict(c, "Comment already liked", err.Error())
+			return
+		}
+		response.InternalError(c, "Failed to like comment", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Comment liked successfully", nil)
+}
+
+// UnlikeComment godoc
+// @Summary Unlike a comment
+// @Description Remove like from a comment
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param postId path string true "Post ID" format(uuid)
+// @Param commentId path string true "Comment ID" format(uuid)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /posts/{postId}/comments/{commentId}/unlike [post]
+func (h *PostHandler) UnlikeComment(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse comment ID from path
+	commentIDStr := c.Param("commentId")
+	commentID, err := uuid.Parse(commentIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid comment ID", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.postUsecase.UnlikeComment(c.Request.Context(), commentID, userID); err != nil {
+		if err == postUsecase.ErrCommentNotFound {
+			response.NotFound(c, "Comment not found")
+			return
+		}
+		if err == postUsecase.ErrNotLiked {
+			response.BadRequest(c, "Comment not liked", err.Error())
+			return
+		}
+		response.InternalError(c, "Failed to unlike comment", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Comment unliked successfully", nil)
 }
