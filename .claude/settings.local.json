@@ -36,7 +36,8 @@
       "Bash(psql:*)",
       "Bash(docker-compose exec:*)",
       "Bash(docker compose:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": []
