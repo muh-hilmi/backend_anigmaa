@@ -69,7 +69,7 @@ func main() {
 	log.Println("✓ Connected to PostgreSQL database")
 
 	// Run database migrations automatically
-	if err := database.RunMigrations(db, "migrations"); err != nil {
+	if err := database.RunMigrations(db, "migrations/consolidated"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 

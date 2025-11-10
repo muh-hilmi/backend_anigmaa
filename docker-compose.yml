@@ -89,7 +89,7 @@ services:
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:8081
     volumes:
       - ./uploads:/app/uploads
-      - ./migrations:/app/migrations
+      - ./migrations/consolidated:/app/migrations/consolidated
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,7 +111,7 @@ services:
     image: migrate/migrate
     container_name: anigmaa_migrate
     volumes:
-      - ./migrations:/migrations
+      - ./migrations/consolidated:/migrations
     command:
       - "-path=/migrations"
       - "-database=postgres://postgres:postgres@postgres:5432/anigmaa?sslmode=disable"
