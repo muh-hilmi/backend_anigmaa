@@ -89,7 +89,7 @@ services:
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:8081
     volumes:
       - ./uploads:/app/uploads
-      - ./migrations:/app/migrations
+      - ./migrations/consolidated:/app/migrations/consolidated
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,21 +106,21 @@ services:
       start_period: 10s
 
   # Database Migration (Optional - runs once then exits)
-  # DISABLED: Backend service already runs migrations automatically via internal/infrastructure/database/migrate.go
-  # migrate:
-  #   image: migrate/migrate
-  #   container_name: anigmaa_migrate
-  #   volumes:
-  #     - ./migrations:/migrations
-  #   command:
-  #     - "-path=/migrations"
-  #     - "-database=postgres://postgres:postgres@postgres:5432/anigmaa?sslmode=disable"
-  #     - "up"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - anigmaa_network
+  # Uncomment if you want to run migrations automatically
+  migrate:
+    image: migrate/migrate
+    container_name: anigmaa_migrate
+    volumes:
+      - ./migrations/consolidated:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://postgres:postgres@postgres:5432/anigmaa?sslmode=disable"
+      - "up"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - anigmaa_network
 
 volumes:
   postgres_data:
