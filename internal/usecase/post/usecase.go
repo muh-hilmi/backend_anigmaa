@@ -381,8 +381,8 @@ func (uc *Usecase) RemoveBookmark(ctx context.Context, postID, userID uuid.UUID)
 	return uc.interactionRepo.RemoveBookmark(ctx, userID, postID)
 }
 
-// GetBookmarks gets a user's bookmarked posts
-func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, offset int) ([]interaction.Bookmark, error) {
+// GetBookmarks gets a user's bookmarked posts with full post details
+func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -390,7 +390,29 @@ func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, of
 		limit = 100
 	}
 
-	return uc.interactionRepo.GetBookmarks(ctx, userID, limit, offset)
+	// Get bookmark records
+	bookmarks, err := uc.interactionRepo.GetBookmarks(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no bookmarks, return empty array
+	if len(bookmarks) == 0 {
+		return []post.PostWithDetails{}, nil
+	}
+
+	// Get full post details for each bookmarked post
+	posts := make([]post.PostWithDetails, 0, len(bookmarks))
+	for _, bookmark := range bookmarks {
+		postDetails, err := uc.GetPostWithDetails(ctx, bookmark.PostID, userID)
+		if err != nil {
+			// Skip posts that were deleted or have errors
+			continue
+		}
+		posts = append(posts, *postDetails)
+	}
+
+	return posts, nil
 }
 
 // SharePost tracks a post share

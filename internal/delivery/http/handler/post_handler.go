@@ -6,7 +6,6 @@ import (
 
 	"github.com/anigmaa/backend/internal/delivery/http/middleware"
 	"github.com/anigmaa/backend/internal/domain/comment"
-	"github.com/anigmaa/backend/internal/domain/interaction"
 	"github.com/anigmaa/backend/internal/domain/post"
 	postUsecase "github.com/anigmaa/backend/internal/usecase/post"
 	"github.com/anigmaa/backend/pkg/response"
@@ -1020,16 +1019,22 @@ func (h *PostHandler) GetBookmarks(c *gin.Context) {
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
 	// Call usecase
-	bookmarks, err := h.postUsecase.GetBookmarks(c.Request.Context(), userID, limit, offset)
+	posts, err := h.postUsecase.GetBookmarks(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get bookmarks", err.Error())
 		return
 	}
 
-	// Ensure we return empty array instead of null
-	if bookmarks == nil {
-		bookmarks = []interaction.Bookmark{}
+	// Transform to Flutter-compatible response format
+	postResponses := make([]post.PostResponse, len(posts))
+	for i, p := range posts {
+		postResponses[i] = p.ToResponse()
 	}
 
-	response.Success(c, http.StatusOK, "Bookmarks retrieved successfully", bookmarks)
+	// Ensure we return empty array instead of null
+	if postResponses == nil {
+		postResponses = []post.PostResponse{}
+	}
+
+	response.Success(c, http.StatusOK, "Bookmarks retrieved successfully", postResponses)
 }
