@@ -441,3 +441,45 @@ func (h *UserHandler) UpdateSettings(c *gin.Context) {
 
 	response.Success(c, http.StatusOK, "Settings updated successfully", settings)
 }
+
+// SearchUsers godoc
+// @Summary Search users
+// @Description Search for users by name or username
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param q query string true "Search query" minlength(2)
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {object} response.Response{data=[]user.User}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /users/search [get]
+func (h *UserHandler) SearchUsers(c *gin.Context) {
+	// Get search query from query params
+	query := c.Query("q")
+	if query == "" || len(query) < 2 {
+		response.BadRequest(c, "Search query must be at least 2 characters", "")
+		return
+	}
+
+	// Parse query parameters
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	// Call usecase
+	users, err := h.userUsecase.SearchUsers(c.Request.Context(), query, limit, offset)
+	if err != nil {
+		response.InternalError(c, "Failed to search users", err.Error())
+		return
+	}
+
+	// Ensure we return empty array instead of null
+	if users == nil {
+		users = []user.User{}
+	}
+
+	response.Success(c, http.StatusOK, "Users found successfully", users)
+}

@@ -16,8 +16,10 @@ import (
 	"github.com/anigmaa/backend/internal/delivery/http/middleware"
 	"github.com/anigmaa/backend/internal/infrastructure/cache"
 	"github.com/anigmaa/backend/internal/infrastructure/database"
+	"github.com/anigmaa/backend/internal/infrastructure/storage"
 	"github.com/anigmaa/backend/internal/repository/postgres"
 	"github.com/anigmaa/backend/internal/usecase/analytics"
+	"github.com/anigmaa/backend/internal/usecase/community"
 	"github.com/anigmaa/backend/internal/usecase/event"
 	"github.com/anigmaa/backend/internal/usecase/post"
 	"github.com/anigmaa/backend/internal/usecase/qna"
@@ -88,6 +90,13 @@ func main() {
 	// Initialize JWT manager
 	jwtManager := jwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.Expiration, cfg.JWT.RefreshExpiration)
 
+	// Initialize storage
+	storageService, err := storage.NewStorage(&cfg.Storage)
+	if err != nil {
+		log.Fatalf("Failed to initialize storage: %v", err)
+	}
+	log.Printf("✓ Storage initialized (type: %s)", cfg.Storage.Type)
+
 	// Initialize repositories
 	userRepo := postgres.NewUserRepository(db)
 	eventRepo := postgres.NewEventRepository(db)
@@ -96,6 +105,7 @@ func main() {
 	ticketRepo := postgres.NewTicketRepository(db)
 	interactionRepo := postgres.NewInteractionRepository(db)
 	qnaRepo := postgres.NewQnARepository(db)
+	communityRepo := postgres.NewCommunityRepository(db)
 
 	// Initialize use cases
 	userUsecase := user.NewUsecase(userRepo, jwtManager, cfg.Google.ClientID)
@@ -104,6 +114,7 @@ func main() {
 	ticketUsecase := ticket.NewUsecase(ticketRepo, eventRepo, userRepo)
 	analyticsUsecase := analytics.NewUsecase(eventRepo, ticketRepo)
 	qnaUsecase := qna.NewUsecase(qnaRepo, eventRepo)
+	communityUsecase := community.NewUsecase(communityRepo)
 
 	// Initialize HTTP handlers
 	authHandler := handler.NewAuthHandler(userUsecase, validate)
@@ -114,6 +125,8 @@ func main() {
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
 	profileHandler := handler.NewProfileHandler(userUsecase, postUsecase, eventUsecase)
 	qnaHandler := handler.NewQnAHandler(qnaUsecase, validate)
+	uploadHandler := handler.NewUploadHandler(storageService)
+	communityHandler := handler.NewCommunityHandler(communityUsecase, validate)
 
 	// Setup router
 	router := gin.Default()
@@ -196,6 +209,7 @@ func main() {
 			users.GET("/me", userHandler.GetMe)
 			users.PUT("/me", userHandler.UpdateMe)
 			users.PUT("/me/settings", userHandler.UpdateSettings)
+			users.GET("/search", userHandler.SearchUsers)
 			users.GET("/:id", userHandler.GetUserByID)
 			users.GET("/:id/followers", userHandler.GetFollowers)
 			users.GET("/:id/following", userHandler.GetFollowing)
@@ -237,6 +251,9 @@ func main() {
 			// Feed endpoint (must be first)
 			posts.GET("/feed", postHandler.GetFeed)
 
+			// Bookmarks endpoint (must be before :id routes)
+			posts.GET("/bookmarks", postHandler.GetBookmarks)
+
 			// Create post
 			posts.POST("", postHandler.CreatePost)
 
@@ -257,6 +274,8 @@ func main() {
 			posts.POST("/:id/like", postHandler.LikePost)
 			posts.POST("/:id/unlike", postHandler.UnlikePost)
 			posts.POST("/:id/undo-repost", postHandler.UndoRepost)
+			posts.POST("/:id/bookmark", postHandler.BookmarkPost)
+			posts.DELETE("/:id/bookmark", postHandler.RemoveBookmark)
 
 			// Get comments for a post
 			posts.GET("/:id/comments", postHandler.GetComments)
@@ -306,6 +325,28 @@ func main() {
 			qnaRoutes.DELETE("/:id/upvote", qnaHandler.RemoveUpvote)
 			qnaRoutes.POST("/:id/answer", qnaHandler.AnswerQuestion)
 			qnaRoutes.DELETE("/:id", qnaHandler.DeleteQuestion)
+		}
+
+		// Upload routes
+		upload := v1.Group("/upload")
+		upload.Use(authMiddleware)
+		{
+			upload.POST("/image", uploadHandler.UploadImage)
+		}
+
+		// Community routes
+		communities := v1.Group("/communities")
+		communities.Use(authMiddleware)
+		{
+			communities.GET("", communityHandler.GetCommunities)
+			communities.GET("/my-communities", communityHandler.GetUserCommunities)
+			communities.POST("", communityHandler.CreateCommunity)
+			communities.GET("/:id", communityHandler.GetCommunityByID)
+			communities.PUT("/:id", communityHandler.UpdateCommunity)
+			communities.DELETE("/:id", communityHandler.DeleteCommunity)
+			communities.POST("/:id/join", communityHandler.JoinCommunity)
+			communities.DELETE("/:id/leave", communityHandler.LeaveCommunity)
+			communities.GET("/:id/members", communityHandler.GetCommunityMembers)
 		}
 	}
 

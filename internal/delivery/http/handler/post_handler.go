@@ -879,3 +879,162 @@ func (h *PostHandler) UnlikeComment(c *gin.Context) {
 
 	response.Success(c, http.StatusOK, "Comment unliked successfully", nil)
 }
+
+// BookmarkPost godoc
+// @Summary Bookmark a post
+// @Description Bookmark a post for later viewing
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Post ID" format(uuid)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /posts/{id}/bookmark [post]
+func (h *PostHandler) BookmarkPost(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse post ID from path
+	postIDStr := c.Param("id")
+	postID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid post ID", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.postUsecase.BookmarkPost(c.Request.Context(), postID, userID); err != nil {
+		if err == postUsecase.ErrPostNotFound {
+			response.NotFound(c, "Post not found")
+			return
+		}
+		if err == postUsecase.ErrAlreadyBookmarked {
+			response.Conflict(c, "Post already bookmarked", err.Error())
+			return
+		}
+		response.InternalError(c, "Failed to bookmark post", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Post bookmarked successfully", nil)
+}
+
+// RemoveBookmark godoc
+// @Summary Remove bookmark from a post
+// @Description Remove a bookmark from a post
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Post ID" format(uuid)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /posts/{id}/bookmark [delete]
+func (h *PostHandler) RemoveBookmark(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse post ID from path
+	postIDStr := c.Param("id")
+	postID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid post ID", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.postUsecase.RemoveBookmark(c.Request.Context(), postID, userID); err != nil {
+		if err == postUsecase.ErrPostNotFound {
+			response.NotFound(c, "Post not found")
+			return
+		}
+		if err == postUsecase.ErrNotBookmarked {
+			response.BadRequest(c, "Post not bookmarked", err.Error())
+			return
+		}
+		response.InternalError(c, "Failed to remove bookmark", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Bookmark removed successfully", nil)
+}
+
+// GetBookmarks godoc
+// @Summary Get bookmarked posts
+// @Description Get all posts bookmarked by the current user
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {object} response.Response{data=[]post.PostWithDetails}
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /posts/bookmarks [get]
+func (h *PostHandler) GetBookmarks(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse query parameters
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	// Call usecase
+	posts, err := h.postUsecase.GetBookmarks(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "Failed to get bookmarks", err.Error())
+		return
+	}
+
+	// Transform to Flutter-compatible response format
+	postResponses := make([]post.PostResponse, len(posts))
+	for i, p := range posts {
+		postResponses[i] = p.ToResponse()
+	}
+
+	// Ensure we return empty array instead of null
+	if postResponses == nil {
+		postResponses = []post.PostResponse{}
+	}
+
+	response.Success(c, http.StatusOK, "Bookmarks retrieved successfully", postResponses)
+}
