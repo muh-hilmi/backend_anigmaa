@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/anigmaa/backend/internal/domain/post"
@@ -19,24 +21,51 @@ func NewPostRepository(db *sqlx.DB) post.Repository {
 	return &postRepository{db: db}
 }
 
-// REVIEW: CRITICAL - Post creation is completely stubbed. This is a showstopper for the entire social feed feature.
-// The frontend expects to create posts via POST /api/v1/posts but this will always return success without persisting data.
-// This method MUST implement: 1) INSERT INTO posts table with all fields, 2) Handle attached_event_id foreign key validation,
-// 3) Insert images into post_images table if provided, 4) Return the created post with ID and timestamps.
-// Without this, users cannot create content - the core feature is non-functional.
 // Create creates a new post
 func (r *postRepository) Create(ctx context.Context, p *post.Post) error {
-	// TODO: implement
-	return nil
+	// Generate UUID if not provided
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+
+	// Set timestamps
+	now := time.Now()
+	p.CreatedAt = now
+	p.UpdatedAt = now
+
+	query := `
+		INSERT INTO posts (
+			id, author_id, content, type, attached_event_id, original_post_id,
+			visibility, created_at, updated_at, likes_count, comments_count,
+			reposts_count, shares_count
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 0, 0)
+	`
+
+	_, err := r.db.ExecContext(ctx, query,
+		p.ID, p.AuthorID, p.Content, p.Type, p.AttachedEventID, p.OriginalPostID,
+		p.Visibility, p.CreatedAt, p.UpdatedAt,
+	)
+
+	return err
 }
 
-// REVIEW: CRITICAL - Cannot retrieve individual posts. Frontend calls GET /api/v1/posts/:id for post detail screen.
-// This stub will always return nil, causing the detail page to show "post not found" for ALL posts.
-// Must implement: SELECT from posts WHERE id = $1 with proper error handling for not found cases.
 // GetByID gets a post by ID
 func (r *postRepository) GetByID(ctx context.Context, postID uuid.UUID) (*post.Post, error) {
-	// TODO: implement
-	return nil, nil
+	query := `
+		SELECT id, author_id, content, type, attached_event_id, original_post_id,
+		       visibility, created_at, updated_at, likes_count, comments_count,
+		       reposts_count, shares_count
+		FROM posts
+		WHERE id = $1
+	`
+
+	var p post.Post
+	err := r.db.GetContext(ctx, &p, query, postID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
 }
 
 // GetWithDetails gets a post with full details
@@ -47,13 +76,49 @@ func (r *postRepository) GetWithDetails(ctx context.Context, postID, userID uuid
 
 // Update updates a post
 func (r *postRepository) Update(ctx context.Context, p *post.Post) error {
-	// TODO: implement
+	p.UpdatedAt = time.Now()
+
+	query := `
+		UPDATE posts
+		SET content = $1, visibility = $2, updated_at = $3
+		WHERE id = $4
+	`
+
+	result, err := r.db.ExecContext(ctx, query, p.Content, p.Visibility, p.UpdatedAt, p.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
 	return nil
 }
 
-// Delete deletes a post
+// Delete deletes a post (hard delete - cascades to related tables)
 func (r *postRepository) Delete(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
+	query := `DELETE FROM posts WHERE id = $1`
+
+	result, err := r.db.ExecContext(ctx, query, postID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
 	return nil
 }
 
@@ -254,59 +319,100 @@ func (r *postRepository) GetUserPosts(ctx context.Context, authorID, viewerID uu
 
 // AddImages adds images to a post
 func (r *postRepository) AddImages(ctx context.Context, images []post.PostImage) error {
-	// TODO: implement
-	return nil
+	if len(images) == 0 {
+		return nil
+	}
+
+	// Start transaction
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		INSERT INTO post_images (id, post_id, image_url, order_index)
+		VALUES ($1, $2, $3, $4)
+	`
+
+	for i, img := range images {
+		if img.ID == uuid.Nil {
+			img.ID = uuid.New()
+		}
+		img.Order = i
+
+		_, err := tx.ExecContext(ctx, query, img.ID, img.PostID, img.ImageURL, img.Order)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // GetImages gets images for a post
 func (r *postRepository) GetImages(ctx context.Context, postID uuid.UUID) ([]string, error) {
-	// TODO: implement
-	return nil, nil
+	query := `
+		SELECT image_url
+		FROM post_images
+		WHERE post_id = $1
+		ORDER BY order_index ASC
+	`
+
+	var imageURLs []string
+	err := r.db.SelectContext(ctx, &imageURLs, query, postID)
+	if err != nil {
+		return nil, err
+	}
+
+	return imageURLs, nil
 }
 
-// REVIEW: HIGH PRIORITY - Like counters are stubbed. The feed shows likes_count but it will never update.
-// When users like a post, the like record is created in the likes table, but the denormalized counter is not updated.
-// This creates data inconsistency: the feed query at line 68 reads likes_count but nothing updates it.
-// Must implement: UPDATE posts SET likes_count = likes_count + 1 WHERE id = $1
 // IncrementLikes increments the likes count
 func (r *postRepository) IncrementLikes(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET likes_count = likes_count + 1 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
 
-// REVIEW: Same issue - decrement must be implemented for unlike operations.
 // DecrementLikes decrements the likes count
 func (r *postRepository) DecrementLikes(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
 
 // IncrementComments increments the comments count
 func (r *postRepository) IncrementComments(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET comments_count = comments_count + 1 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
 
 // DecrementComments decrements the comments count
 func (r *postRepository) DecrementComments(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
 
 // IncrementReposts increments the reposts count
 func (r *postRepository) IncrementReposts(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET reposts_count = reposts_count + 1 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
 
 // DecrementReposts decrements the reposts count
 func (r *postRepository) DecrementReposts(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET reposts_count = GREATEST(reposts_count - 1, 0) WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
 
 // IncrementShares increments the shares count
 func (r *postRepository) IncrementShares(ctx context.Context, postID uuid.UUID) error {
-	// TODO: implement
-	return nil
+	query := `UPDATE posts SET shares_count = shares_count + 1 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, postID)
+	return err
 }
