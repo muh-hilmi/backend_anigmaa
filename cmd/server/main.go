@@ -117,7 +117,7 @@ func main() {
 	userUsecase := user.NewUsecase(userRepo, authTokenRepo, jwtManager, cfg.Google.ClientID)
 	eventUsecase := event.NewUsecase(eventRepo, userRepo)
 	postUsecase := post.NewUsecase(postRepo, commentRepo, interactionRepo, eventRepo, userRepo)
-	ticketUsecase := ticket.NewUsecase(ticketRepo, eventRepo, userRepo)
+	ticketUsecase := ticket.NewUsecase(ticketRepo, eventRepo, userRepo, midtransClient)
 	analyticsUsecase := analytics.NewUsecase(eventRepo, ticketRepo)
 	qnaUsecase := qna.NewUsecase(qnaRepo, eventRepo)
 	communityUsecase := community.NewUsecase(communityRepo)
@@ -133,7 +133,7 @@ func main() {
 	qnaHandler := handler.NewQnAHandler(qnaUsecase, validate)
 	uploadHandler := handler.NewUploadHandler(storageService)
 	communityHandler := handler.NewCommunityHandler(communityUsecase, validate)
-	paymentHandler := handler.NewPaymentHandler(midtransClient, ticketRepo)
+	paymentHandler := handler.NewPaymentHandler(midtransClient, ticketRepo, eventRepo, userRepo)
 
 	// Setup router
 	router := gin.Default()

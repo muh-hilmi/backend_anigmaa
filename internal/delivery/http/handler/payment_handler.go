@@ -2,24 +2,32 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/anigmaa/backend/internal/domain/event"
 	"github.com/anigmaa/backend/internal/domain/ticket"
+	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/anigmaa/backend/internal/infrastructure/payment"
 	"github.com/anigmaa/backend/pkg/response"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // PaymentHandler handles payment-related HTTP requests
 type PaymentHandler struct {
 	midtransClient *payment.MidtransClient
 	ticketRepo     ticket.Repository
+	eventRepo      event.Repository
+	userRepo       user.Repository
 }
 
 // NewPaymentHandler creates a new payment handler
-func NewPaymentHandler(midtransClient *payment.MidtransClient, ticketRepo ticket.Repository) *PaymentHandler {
+func NewPaymentHandler(midtransClient *payment.MidtransClient, ticketRepo ticket.Repository, eventRepo event.Repository, userRepo user.Repository) *PaymentHandler {
 	return &PaymentHandler{
 		midtransClient: midtransClient,
 		ticketRepo:     ticketRepo,
+		eventRepo:      eventRepo,
+		userRepo:       userRepo,
 	}
 }
 
@@ -115,6 +123,24 @@ func (h *PaymentHandler) MidtransWebhook(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Transaction processed, ticket update pending"})
 			return
 		}
+
+		// Update transaction completed_at timestamp
+		now := time.Now()
+		transaction.CompletedAt = &now
+		_ = h.ticketRepo.CreateTransaction(c.Request.Context(), transaction)
+
+		// Join the event (create attendee record)
+		attendee := &event.EventAttendee{
+			ID:       uuid.New(),
+			EventID:  tkt.EventID,
+			UserID:   tkt.UserID,
+			JoinedAt: now,
+			Status:   event.AttendeeConfirmed,
+		}
+		_ = h.eventRepo.Join(c.Request.Context(), attendee)
+
+		// Increment events attended for user stats
+		_ = h.userRepo.IncrementEventsAttended(c.Request.Context(), tkt.UserID)
 	}
 
 	// If payment failed, cancel the ticket

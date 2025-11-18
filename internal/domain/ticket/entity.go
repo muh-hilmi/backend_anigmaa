@@ -10,10 +10,11 @@ import (
 type TicketStatus string
 
 const (
-	StatusActive    TicketStatus = "active"
-	StatusCancelled TicketStatus = "cancelled"
-	StatusRefunded  TicketStatus = "refunded"
-	StatusExpired   TicketStatus = "expired"
+	StatusPending   TicketStatus = "pending"   // Awaiting payment
+	StatusActive    TicketStatus = "active"    // Paid/confirmed
+	StatusCancelled TicketStatus = "cancelled" // Cancelled by user or system
+	StatusRefunded  TicketStatus = "refunded"  // Payment refunded
+	StatusExpired   TicketStatus = "expired"   // Ticket expired
 )
 
 // Ticket represents an event ticket
@@ -70,6 +71,13 @@ type PurchaseTicketRequest struct {
 // CheckInRequest represents check-in data
 type CheckInRequest struct {
 	AttendanceCode string `json:"attendance_code" binding:"required,len=4"`
+}
+
+// PurchaseTicketResponse represents the response after purchasing a ticket
+type PurchaseTicketResponse struct {
+	Ticket       *Ticket `json:"ticket"`
+	PaymentToken *string `json:"payment_token,omitempty"` // Snap token for paid events
+	PaymentURL   *string `json:"payment_url,omitempty"`   // Redirect URL for payment
 }
 
 // Business logic methods

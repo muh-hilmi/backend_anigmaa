@@ -29,13 +29,13 @@ func NewTicketHandler(ticketUsecase *ticketUsecase.Usecase, validator *validator
 
 // PurchaseTicket godoc
 // @Summary Purchase ticket
-// @Description Purchase a ticket for an event
+// @Description Purchase a ticket for an event. For paid events, returns payment URL.
 // @Tags tickets
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param request body ticket.PurchaseTicketRequest true "Ticket purchase data"
-// @Success 201 {object} response.Response{data=ticket.Ticket}
+// @Success 201 {object} response.Response{data=ticket.PurchaseTicketResponse}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 404 {object} response.Response
@@ -71,7 +71,7 @@ func (h *TicketHandler) PurchaseTicket(c *gin.Context) {
 	}
 
 	// Call usecase
-	newTicket, err := h.ticketUsecase.PurchaseTicket(c.Request.Context(), userID, &req)
+	purchaseResponse, err := h.ticketUsecase.PurchaseTicket(c.Request.Context(), userID, &req)
 	if err != nil {
 		if err == ticketUsecase.ErrEventNotFound {
 			response.NotFound(c, "Event not found")
@@ -89,7 +89,13 @@ func (h *TicketHandler) PurchaseTicket(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "Ticket purchased successfully", newTicket)
+	// Different messages for free vs paid events
+	message := "Ticket purchased successfully"
+	if purchaseResponse.PaymentURL != nil {
+		message = "Ticket created. Please complete payment to activate."
+	}
+
+	response.Success(c, http.StatusCreated, message, purchaseResponse)
 }
 
 // GetMyTickets godoc
