@@ -151,32 +151,34 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 	// Apply different sorting based on discovery mode
 	switch filter.Mode {
 	case "trending":
-		// Trending: High engagement events (many attendees)
-		// Weight by attendees count squared for stronger bias toward popular events
-		query += ` ORDER BY (
-			POWER((SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1, 2)
-		) * random() DESC`
+		// Trending: Popular/new events - prioritize engagement + recency
+		// Combine attendees count with how recent the event is
+		query += ` ORDER BY
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') DESC,
+			e.created_at DESC,
+			random()`
 
 	case "for_you":
-		// For You: Personalized mix - balanced engagement with some randomness
-		// Medium weight on attendees, more randomness for variety
-		query += ` ORDER BY (
-			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
-		) * random() DESC`
+		// For You: Personalized mix - show variety with moderate randomness
+		// Balance between popularity and discovery
+		query += ` ORDER BY
+			((SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') * 0.5 +
+			 EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400.0 * -0.3) +
+			random() * 10 DESC`
 
 	case "chill":
-		// Chill: Smaller, intimate events (fewer attendees)
-		// Inverse weight - prefer events with fewer attendees
-		// Formula: 100 - attendees gives higher score to smaller events
-		query += ` ORDER BY (
-			100.0 / ((SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1)
-		) * random() DESC`
+		// Chill: Smaller, intimate events - prefer low capacity/attendees
+		// Sort by smallest max_attendees and fewest current attendees
+		query += ` ORDER BY
+			COALESCE(e.max_attendees, 999999) ASC,
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') ASC,
+			random()`
 
 	default:
-		// Default: Same as "for_you" - balanced approach
-		query += ` ORDER BY (
-			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
-		) * random() DESC`
+		// Default: Simple chronological with some randomness
+		query += ` ORDER BY
+			e.created_at DESC,
+			random()`
 	}
 
 	if filter.Limit > 0 {
