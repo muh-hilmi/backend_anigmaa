@@ -392,3 +392,32 @@ func (r *userRepository) updateFollowCounts(ctx context.Context, followerID, fol
 
 	return nil
 }
+
+// CountFollowers counts total followers for a user
+func (r *userRepository) CountFollowers(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM follows WHERE following_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	return count, err
+}
+
+// CountFollowing counts total users a user is following
+func (r *userRepository) CountFollowing(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM follows WHERE follower_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	return count, err
+}
+
+// CountSearchResults counts total users matching search query
+func (r *userRepository) CountSearchResults(ctx context.Context, query string) (int, error) {
+	sql := `
+		SELECT COUNT(*)
+		FROM users
+		WHERE (name ILIKE $1 OR username ILIKE $1 OR email ILIKE $1)
+	`
+	searchTerm := "%" + query + "%"
+	var count int
+	err := r.db.QueryRowContext(ctx, sql, searchTerm).Scan(&count)
+	return count, err
+}

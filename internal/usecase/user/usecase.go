@@ -418,6 +418,21 @@ func (uc *Usecase) IsFollowing(ctx context.Context, followerID, followingID uuid
 	return uc.userRepo.IsFollowing(ctx, followerID, followingID)
 }
 
+// CountFollowers counts total followers for a user
+func (uc *Usecase) CountFollowers(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.userRepo.CountFollowers(ctx, userID)
+}
+
+// CountFollowing counts total users a user is following
+func (uc *Usecase) CountFollowing(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.userRepo.CountFollowing(ctx, userID)
+}
+
+// CountSearchResults counts total users matching search query
+func (uc *Usecase) CountSearchResults(ctx context.Context, query string) (int, error) {
+	return uc.userRepo.CountSearchResults(ctx, query)
+}
+
 // SearchUsers searches for users by query
 func (uc *Usecase) SearchUsers(ctx context.Context, query string, limit, offset int) ([]user.User, error) {
 	if limit <= 0 {

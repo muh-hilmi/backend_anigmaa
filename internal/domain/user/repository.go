@@ -29,6 +29,11 @@ type Repository interface {
 	GetFollowing(ctx context.Context, userID uuid.UUID, limit, offset int) ([]User, error)
 	IsFollowing(ctx context.Context, followerID, followingID uuid.UUID) (bool, error)
 
+	// Counting for pagination
+	CountFollowers(ctx context.Context, userID uuid.UUID) (int, error)
+	CountFollowing(ctx context.Context, userID uuid.UUID) (int, error)
+	CountSearchResults(ctx context.Context, query string) (int, error)
+
 	// Stats
 	GetStats(ctx context.Context, userID uuid.UUID) (*UserStats, error)
 	IncrementEventsAttended(ctx context.Context, userID uuid.UUID) error
