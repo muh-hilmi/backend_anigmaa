@@ -34,4 +34,7 @@ type Repository interface {
 
 	// GetUpvoteCount gets the number of upvotes for a question
 	GetUpvoteCount(ctx context.Context, qnaID uuid.UUID) (int, error)
+
+	// CountEventQnA counts total questions for an event
+	CountEventQnA(ctx context.Context, eventID uuid.UUID) (int, error)
 }

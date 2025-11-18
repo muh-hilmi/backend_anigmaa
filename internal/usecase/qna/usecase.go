@@ -161,3 +161,8 @@ func (uc *Usecase) DeleteQuestion(ctx context.Context, qnaID, userID uuid.UUID) 
 
 	return uc.qnaRepo.Delete(ctx, qnaID)
 }
+
+// CountEventQnA counts total questions for an event
+func (uc *Usecase) CountEventQnA(ctx context.Context, eventID uuid.UUID) (int, error) {
+	return uc.qnaRepo.CountEventQnA(ctx, eventID)
+}

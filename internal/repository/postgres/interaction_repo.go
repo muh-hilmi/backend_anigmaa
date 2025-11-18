@@ -350,3 +350,12 @@ func (r *interactionRepository) GetShareCount(ctx context.Context, postID uuid.U
 
 	return count, nil
 }
+
+// CountBookmarks counts total bookmarks for a user
+func (r *interactionRepository) CountBookmarks(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM bookmarks WHERE user_id = $1`
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	return count, err
+}

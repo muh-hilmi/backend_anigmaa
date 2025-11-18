@@ -345,6 +345,45 @@ func (uc *Usecase) GetEventTransactions(ctx context.Context, eventID, hostID uui
 	return transactions[start:end], nil
 }
 
+// CountEventTransactions counts total transactions for an event with optional status filter
+func (uc *Usecase) CountEventTransactions(ctx context.Context, eventID, hostID uuid.UUID, statusFilter string) (int, error) {
+	// Get event and verify host ownership
+	evt, err := uc.eventRepo.GetByID(ctx, eventID)
+	if err != nil {
+		return 0, ErrEventNotFound
+	}
+
+	if evt.HostID != hostID {
+		return 0, ErrUnauthorized
+	}
+
+	// Get all tickets for the event
+	tickets, err := uc.ticketRepo.GetByEventID(ctx, eventID)
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+
+	for _, tkt := range tickets {
+		// Get transactions for this ticket
+		txns, err := uc.ticketRepo.GetTransactionsByTicketID(ctx, tkt.ID)
+		if err != nil {
+			continue
+		}
+
+		for _, txn := range txns {
+			// Apply status filter
+			if statusFilter != "" && string(txn.Status) != statusFilter {
+				continue
+			}
+			count++
+		}
+	}
+
+	return count, nil
+}
+
 // GetHostRevenueSummary retrieves comprehensive revenue summary for a host
 func (uc *Usecase) GetHostRevenueSummary(ctx context.Context, hostID uuid.UUID, startDate, endDate *time.Time) (*HostRevenueSummary, error) {
 	// Get all events by host
@@ -551,6 +590,27 @@ func (uc *Usecase) GetHostEventsList(ctx context.Context, hostID uuid.UUID, stat
 	}
 
 	return eventSummaries[start:end], nil
+}
+
+// CountHostEventsList counts total events for a host with optional status filter
+func (uc *Usecase) CountHostEventsList(ctx context.Context, hostID uuid.UUID, statusFilter string) (int, error) {
+	// Get all events by host
+	events, err := uc.eventRepo.GetByHostID(ctx, hostID)
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+
+	for _, evt := range events {
+		// Apply status filter
+		if statusFilter != "" && string(evt.Status) != statusFilter {
+			continue
+		}
+		count++
+	}
+
+	return count, nil
 }
 
 // Helper functions for anonymization

@@ -59,8 +59,15 @@ func (h *QnAHandler) GetEventQnA(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Request limit+1 to check if there are more results
-	qnaList, err := h.qnaUsecase.GetEventQnA(c.Request.Context(), eventID, userID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.qnaUsecase.CountEventQnA(c.Request.Context(), eventID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get Q&A list
+	qnaList, err := h.qnaUsecase.GetEventQnA(c.Request.Context(), eventID, userID, limit, offset)
 	if err != nil {
 		if err == qnaUsecase.ErrEventNotFound {
 			response.NotFound(c, "Event not found")
@@ -75,14 +82,8 @@ func (h *QnAHandler) GetEventQnA(c *gin.Context) {
 		qnaList = []qna.QnAWithDetails{}
 	}
 
-	// Check if there are more results
-	hasNext := len(qnaList) > limit
-	if hasNext {
-		qnaList = qnaList[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(qnaList), limit, offset, len(qnaList))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(qnaList))
 	response.Paginated(c, http.StatusOK, "Q&A retrieved successfully", qnaList, meta)
 }
 

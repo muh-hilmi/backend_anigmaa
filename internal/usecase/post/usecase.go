@@ -429,6 +429,11 @@ func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, of
 	return posts, nil
 }
 
+// CountBookmarks counts total bookmarks for a user
+func (uc *Usecase) CountBookmarks(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.interactionRepo.CountBookmarks(ctx, userID)
+}
+
 // SharePost tracks a post share
 func (uc *Usecase) SharePost(ctx context.Context, postID, userID uuid.UUID, platform *string) error {
 	// Check if post exists

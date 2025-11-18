@@ -155,20 +155,21 @@ func (h *ProfileHandler) GetProfileEvents(c *gin.Context) {
 		return
 	}
 
-	// Request limit+1 to check if there are more results
-	events, err := h.eventUsecase.GetByHost(c.Request.Context(), user.ID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountHostedEvents(c.Request.Context(), user.ID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get events
+	events, err := h.eventUsecase.GetByHost(c.Request.Context(), user.ID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user events", err.Error())
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(events) > limit
-	if hasNext {
-		events = events[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(events))
 	response.Paginated(c, http.StatusOK, "Events retrieved successfully", events, meta)
 }
