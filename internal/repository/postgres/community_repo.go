@@ -102,10 +102,13 @@ func (r *communityRepository) GetAll(ctx context.Context, filter *community.Comm
 
 	query := `
 		SELECT
-			c.*,
+			c.id, c.name, c.slug, c.description, c.avatar_url, c.cover_url,
+			c.creator_id, c.privacy, c.members_count, c.posts_count,
+			c.created_at, c.updated_at,
 			u.name as creator_name,
 			u.avatar_url as creator_avatar_url,
-			false as is_joined_by_user
+			false as is_joined_by_user,
+			NULL::text as user_role
 		FROM communities c
 		JOIN users u ON c.creator_id = u.id
 		WHERE 1=1
@@ -196,7 +199,9 @@ func (r *communityRepository) GetUserCommunities(ctx context.Context, userID uui
 	var communities []community.CommunityWithDetails
 	query := `
 		SELECT
-			c.*,
+			c.id, c.name, c.slug, c.description, c.avatar_url, c.cover_url,
+			c.creator_id, c.privacy, c.members_count, c.posts_count,
+			c.created_at, c.updated_at,
 			u.name as creator_name,
 			u.avatar_url as creator_avatar_url,
 			true as is_joined_by_user,
@@ -239,7 +244,9 @@ func (r *communityRepository) GetWithDetails(ctx context.Context, communityID, u
 	var comm community.CommunityWithDetails
 	query := `
 		SELECT
-			c.*,
+			c.id, c.name, c.slug, c.description, c.avatar_url, c.cover_url,
+			c.creator_id, c.privacy, c.members_count, c.posts_count,
+			c.created_at, c.updated_at,
 			u.name as creator_name,
 			u.avatar_url as creator_avatar_url,
 			EXISTS(SELECT 1 FROM community_members WHERE community_id = c.id AND user_id = $2) as is_joined_by_user,
