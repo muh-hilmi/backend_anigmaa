@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/anigmaa/backend/internal/domain/post"
