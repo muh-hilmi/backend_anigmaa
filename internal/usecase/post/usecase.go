@@ -61,10 +61,14 @@ func (uc *Usecase) CreatePost(ctx context.Context, authorID uuid.UUID, req *post
 		return nil, errors.New("author user not found")
 	}
 
-	// Verify attached event exists (required)
-	_, err = uc.eventRepo.GetByID(ctx, req.AttachedEventID)
-	if err != nil {
-		return nil, ErrEventNotFound
+	// Verify attached event exists (only if provided)
+	var attachedEventID uuid.UUID
+	if req.AttachedEventID != nil && *req.AttachedEventID != uuid.Nil {
+		_, err = uc.eventRepo.GetByID(ctx, *req.AttachedEventID)
+		if err != nil {
+			return nil, ErrEventNotFound
+		}
+		attachedEventID = *req.AttachedEventID
 	}
 
 	// Create post
@@ -74,7 +78,7 @@ func (uc *Usecase) CreatePost(ctx context.Context, authorID uuid.UUID, req *post
 		AuthorID:        authorID,
 		Content:         req.Content,
 		Type:            req.Type,
-		AttachedEventID: req.AttachedEventID,
+		AttachedEventID: attachedEventID,
 		Visibility:      req.Visibility,
 		CreatedAt:       now,
 		UpdatedAt:       now,

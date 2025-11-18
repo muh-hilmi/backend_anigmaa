@@ -116,6 +116,12 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
+	// Custom validation: attached_event_id is required for text_with_event posts
+	if req.Type == post.TypeTextWithEvent && (req.AttachedEventID == nil || *req.AttachedEventID == uuid.Nil) {
+		response.BadRequest(c, "Validation failed", "attached_event_id is required for text_with_event posts")
+		return
+	}
+
 	// Call usecase
 	newPost, err := h.postUsecase.CreatePost(c.Request.Context(), authorID, &req)
 	if err != nil {
