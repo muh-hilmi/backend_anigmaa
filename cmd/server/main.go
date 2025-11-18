@@ -16,6 +16,7 @@ import (
 	"github.com/anigmaa/backend/internal/delivery/http/middleware"
 	"github.com/anigmaa/backend/internal/infrastructure/cache"
 	"github.com/anigmaa/backend/internal/infrastructure/database"
+	"github.com/anigmaa/backend/internal/infrastructure/payment"
 	"github.com/anigmaa/backend/internal/infrastructure/storage"
 	"github.com/anigmaa/backend/internal/repository/postgres"
 	"github.com/anigmaa/backend/internal/usecase/analytics"
@@ -97,6 +98,10 @@ func main() {
 	}
 	log.Printf("✓ Storage initialized (type: %s)", cfg.Storage.Type)
 
+	// Initialize Midtrans payment client
+	midtransClient := payment.NewMidtransClient(&cfg.Midtrans)
+	log.Printf("✓ Midtrans client initialized (mode: %s)", map[bool]string{true: "production", false: "sandbox"}[cfg.Midtrans.IsProduction])
+
 	// Initialize repositories
 	userRepo := postgres.NewUserRepository(db)
 	eventRepo := postgres.NewEventRepository(db)
@@ -128,6 +133,7 @@ func main() {
 	qnaHandler := handler.NewQnAHandler(qnaUsecase, validate)
 	uploadHandler := handler.NewUploadHandler(storageService)
 	communityHandler := handler.NewCommunityHandler(communityUsecase, validate)
+	paymentHandler := handler.NewPaymentHandler(midtransClient, ticketRepo)
 
 	// Setup router
 	router := gin.Default()
@@ -352,6 +358,19 @@ func main() {
 			communities.POST("/:id/join", communityHandler.JoinCommunity)
 			communities.DELETE("/:id/leave", communityHandler.LeaveCommunity)
 			communities.GET("/:id/members", communityHandler.GetCommunityMembers)
+		}
+
+		// Webhook routes (public - no auth required)
+		webhooks := v1.Group("/webhooks")
+		{
+			webhooks.POST("/midtrans", paymentHandler.MidtransWebhook)
+		}
+
+		// Payment routes (protected)
+		payments := v1.Group("/payments")
+		payments.Use(authMiddleware)
+		{
+			payments.GET("/transactions/:order_id/status", paymentHandler.GetTransactionStatus)
 		}
 	}
 
