@@ -148,7 +148,12 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 		argCount++
 	}
 
-	query += " ORDER BY e.start_time ASC"
+	// Random weighted by engagement score (attendees count)
+	// Formula: (attendees_count + 1) ensures minimum weight of 1
+	// Multiply by random() to add randomness with engagement bias
+	query += ` ORDER BY (
+		(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
+	) * random() DESC`
 
 	if filter.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argCount)
@@ -221,7 +226,9 @@ func (r *eventRepository) GetNearby(ctx context.Context, lat, lng, radiusKm floa
 		INNER JOIN users u ON e.host_id = u.id
 		WHERE ST_DWithin(e.location_geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3 * 1000)
 			AND e.status = 'upcoming'
-		ORDER BY distance ASC
+		ORDER BY (
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
+		) * random() DESC
 		LIMIT $4
 	`
 
@@ -318,7 +325,9 @@ func (r *eventRepository) GetUpcomingEvents(ctx context.Context, limit int) ([]e
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
 		WHERE e.status = 'upcoming' AND e.start_time > NOW()
-		ORDER BY e.start_time ASC
+		ORDER BY (
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) + 1
+		) * random() DESC
 		LIMIT $1
 	`
 
@@ -334,7 +343,9 @@ func (r *eventRepository) GetLiveEvents(ctx context.Context, limit int) ([]event
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
 		WHERE e.status = 'ongoing' AND e.start_time <= NOW() AND e.end_time >= NOW()
-		ORDER BY e.start_time DESC
+		ORDER BY (
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) + 1
+		) * random() DESC
 		LIMIT $1
 	`
 
