@@ -741,3 +741,27 @@ func (r *postRepository) IncrementShares(ctx context.Context, postID uuid.UUID) 
 	_, err := r.db.ExecContext(ctx, query, postID)
 	return err
 }
+
+// CountFeed counts the total number of posts in a user's feed
+func (r *postRepository) CountFeed(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM posts p
+		WHERE p.visibility = 'public'
+	`
+	var count int
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	return count, err
+}
+
+// CountUserPosts counts the total number of posts by a specific author
+func (r *postRepository) CountUserPosts(ctx context.Context, authorID uuid.UUID) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM posts p
+		WHERE p.author_id = $1
+	`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, authorID).Scan(&count)
+	return count, err
+}

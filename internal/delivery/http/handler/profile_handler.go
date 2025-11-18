@@ -105,21 +105,22 @@ func (h *ProfileHandler) GetProfilePosts(c *gin.Context) {
 		viewerID, _ = uuid.Parse(viewerIDStr)
 	}
 
-	// Request limit+1 to check if there are more results
-	posts, err := h.postUsecase.GetUserPosts(c.Request.Context(), user.ID, viewerID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.postUsecase.CountUserPosts(c.Request.Context(), user.ID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get user posts
+	posts, err := h.postUsecase.GetUserPosts(c.Request.Context(), user.ID, viewerID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user posts", err.Error())
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(posts) > limit
-	if hasNext {
-		posts = posts[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(posts), limit, offset, len(posts))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(posts))
 	response.Paginated(c, http.StatusOK, "Posts retrieved successfully", posts, meta)
 }
 

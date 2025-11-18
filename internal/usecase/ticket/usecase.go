@@ -256,6 +256,11 @@ func (uc *Usecase) GetUserTickets(ctx context.Context, userID uuid.UUID, limit, 
 	return tickets, nil
 }
 
+// CountUserTickets counts total tickets for a user
+func (uc *Usecase) CountUserTickets(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.ticketRepo.CountUserTickets(ctx, userID)
+}
+
 // GetEventTickets gets all tickets for an event (host only)
 func (uc *Usecase) GetEventTickets(ctx context.Context, eventID, requestingUserID uuid.UUID, limit, offset int) ([]ticket.TicketWithDetails, error) {
 	// Get event

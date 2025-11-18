@@ -409,3 +409,19 @@ func (r *ticketRepository) GetTransactionsByTicketID(ctx context.Context, ticket
 
 	return transactions, nil
 }
+
+// CountUserTickets counts total tickets for a user
+func (r *ticketRepository) CountUserTickets(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM tickets WHERE user_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	return count, err
+}
+
+// CountEventTickets counts total tickets for an event
+func (r *ticketRepository) CountEventTickets(ctx context.Context, eventID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM tickets WHERE event_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, eventID).Scan(&count)
+	return count, err
+}

@@ -59,17 +59,18 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase - request limit+1 to check if there are more
-	posts, err := h.postUsecase.GetFeed(c.Request.Context(), userID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.postUsecase.CountFeed(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Call usecase to get posts
+	posts, err := h.postUsecase.GetFeed(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get feed", err.Error())
 		return
-	}
-
-	// Check if there are more results
-	hasNext := len(posts) > limit
-	if hasNext {
-		posts = posts[:limit] // Trim to requested limit
 	}
 
 	// Transform to Flutter-compatible response format
@@ -78,8 +79,8 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 		postResponses[i] = p.ToResponse()
 	}
 
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(posts), limit, offset, len(posts))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(posts))
 	response.Paginated(c, http.StatusOK, "Feed retrieved successfully", postResponses, meta)
 }
 

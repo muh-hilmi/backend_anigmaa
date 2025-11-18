@@ -188,6 +188,11 @@ func (uc *Usecase) GetFeed(ctx context.Context, userID uuid.UUID, limit, offset 
 	return uc.postRepo.GetFeed(ctx, userID, limit, offset)
 }
 
+// CountFeed counts total posts in user's feed
+func (uc *Usecase) CountFeed(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.postRepo.CountFeed(ctx, userID)
+}
+
 // GetUserPosts gets posts by a specific user
 func (uc *Usecase) GetUserPosts(ctx context.Context, authorID, viewerID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
 	// Verify author exists
@@ -204,6 +209,11 @@ func (uc *Usecase) GetUserPosts(ctx context.Context, authorID, viewerID uuid.UUI
 	}
 
 	return uc.postRepo.GetUserPosts(ctx, authorID, viewerID, limit, offset)
+}
+
+// CountUserPosts counts total posts by a user
+func (uc *Usecase) CountUserPosts(ctx context.Context, authorID uuid.UUID) (int, error) {
+	return uc.postRepo.CountUserPosts(ctx, authorID)
 }
 
 // ListPosts lists posts with filters

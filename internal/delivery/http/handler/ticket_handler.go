@@ -129,21 +129,22 @@ func (h *TicketHandler) GetMyTickets(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase - request limit+1 to check if there are more
-	tickets, err := h.ticketUsecase.GetUserTickets(c.Request.Context(), userID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.ticketUsecase.CountUserTickets(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get user tickets
+	tickets, err := h.ticketUsecase.GetUserTickets(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get tickets", err.Error())
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(tickets) > limit
-	if hasNext {
-		tickets = tickets[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(tickets), limit, offset, len(tickets))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(tickets))
 	response.Paginated(c, http.StatusOK, "Tickets retrieved successfully", tickets, meta)
 }
 
