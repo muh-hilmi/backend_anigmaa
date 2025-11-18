@@ -95,6 +95,7 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 // @Param category query string false "Event category"
 // @Param is_free query bool false "Filter free events"
 // @Param status query string false "Event status"
+// @Param mode query string false "Discovery mode: trending (popular events), for_you (personalized), chill (intimate/small events)"
 // @Param lat query number false "Latitude for location-based search"
 // @Param lng query number false "Longitude for location-based search"
 // @Param radius query number false "Search radius in kilometers"
