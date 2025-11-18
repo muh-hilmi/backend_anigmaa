@@ -239,7 +239,7 @@ UPDATE events e SET attendees_count = (
     SELECT COUNT(*) FROM event_attendees ea
     WHERE ea.event_id = e.id AND ea.status = 'confirmed'
 )
-WHERE e.id LIKE 'f%';
+WHERE e.id::text LIKE 'f%';
 
 
 -- ============================================================================
