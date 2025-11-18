@@ -41,14 +41,7 @@ func NewPostHandler(postUsecase *postUsecase.Usecase, validator *validator.Valid
 // @Failure 401 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /posts/feed [get]
-// REVIEW: PRODUCTION CODE QUALITY - Remove all println debug statements before production deployment.
-// Use structured logging (h.logger.Debug) with proper log levels instead of println which cannot be controlled or filtered.
-// Debug statements like this pollute stdout and provide no contextual information for production debugging.
 func (h *PostHandler) GetFeed(c *gin.Context) {
-	// Debug logging
-	println("🔍 GetFeed handler called - Path:", c.Request.URL.Path)
-	println("🔍 Query params:", c.Request.URL.RawQuery)
-
 	// Get user ID from context
 	userIDStr, exists := middleware.GetUserID(c)
 	if !exists {
@@ -58,8 +51,6 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		// REVIEW: Remove all println debug logs - same issue throughout this file (lines 58, 67, 72, 83, 156, 161)
-		println("❌ GetFeed: Invalid user ID -", err.Error())
 		response.BadRequest(c, "Invalid user ID", err.Error())
 		return
 	}
@@ -68,12 +59,9 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	println("✅ GetFeed: Calling usecase with userID:", userID.String(), "limit:", limit, "offset:", offset)
-
 	// Call usecase
 	posts, err := h.postUsecase.GetFeed(c.Request.Context(), userID, limit, offset)
 	if err != nil {
-		println("❌ GetFeed: Usecase error -", err.Error())
 		response.InternalError(c, "Failed to get feed", err.Error())
 		return
 	}
@@ -84,7 +72,6 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 		postResponses[i] = p.ToResponse()
 	}
 
-	println("✅ GetFeed: Success - returning", len(postResponses), "posts")
 	response.Success(c, http.StatusOK, "Feed retrieved successfully", postResponses)
 }
 
@@ -157,16 +144,10 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 // @Failure 500 {object} response.Response
 // @Router /posts/{id} [get]
 func (h *PostHandler) GetPostByID(c *gin.Context) {
-	// Debug logging
-	println("🔍 GetPostByID handler called - Path:", c.Request.URL.Path)
-
 	// Parse post ID from path
 	postIDStr := c.Param("id")
-	println("🔍 GetPostByID: Trying to parse ID:", postIDStr)
-
 	postID, err := uuid.Parse(postIDStr)
 	if err != nil {
-		println("❌ GetPostByID: Failed to parse UUID:", postIDStr, "Error:", err.Error())
 		response.BadRequest(c, "Invalid post ID", err.Error())
 		return
 	}
