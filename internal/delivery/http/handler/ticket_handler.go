@@ -496,3 +496,61 @@ func (h *TicketHandler) VerifyTicket(c *gin.Context) {
 		"is_valid": isValid,
 	})
 }
+
+// GetTransaction godoc
+// @Summary Get transaction details
+// @Description Get details of a specific ticket transaction
+// @Tags tickets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Transaction ID"
+// @Success 200 {object} response.Response{data=ticket.TicketTransaction}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /tickets/transactions/{id} [get]
+func (h *TicketHandler) GetTransaction(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse transaction ID from path
+	transactionID := c.Param("id")
+	if transactionID == "" {
+		response.BadRequest(c, "Transaction ID is required", "")
+		return
+	}
+
+	// Call usecase
+	transaction, err := h.ticketUsecase.GetTransaction(c.Request.Context(), transactionID, userID)
+	if err != nil {
+		if err == ticketUsecase.ErrTicketNotFound {
+			response.NotFound(c, "Transaction not found")
+			return
+		}
+		if err == ticketUsecase.ErrUnauthorized {
+			response.Forbidden(c, "You don't have access to this transaction")
+			return
+		}
+		if err.Error() == "transaction not found" {
+			response.NotFound(c, "Transaction not found")
+			return
+		}
+		response.InternalError(c, "Failed to get transaction", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Transaction retrieved successfully", transaction)
+}

@@ -350,6 +350,28 @@ func (uc *Usecase) GetAttendanceCode(ctx context.Context, ticketID, userID uuid.
 	return t.AttendanceCode, nil
 }
 
+// GetTransaction gets a transaction by transaction ID
+func (uc *Usecase) GetTransaction(ctx context.Context, transactionID string, userID uuid.UUID) (*ticket.TicketTransaction, error) {
+	// Get transaction
+	transaction, err := uc.ticketRepo.GetTransaction(ctx, transactionID)
+	if err != nil {
+		return nil, errors.New("transaction not found")
+	}
+
+	// Get ticket to verify ownership
+	t, err := uc.ticketRepo.GetByID(ctx, transaction.TicketID)
+	if err != nil {
+		return nil, ErrTicketNotFound
+	}
+
+	// Verify user owns the ticket
+	if t.UserID != userID {
+		return nil, ErrUnauthorized
+	}
+
+	return transaction, nil
+}
+
 // ProcessPaymentCallback handles payment gateway callback
 // This would be called by Midtrans webhook in production
 func (uc *Usecase) ProcessPaymentCallback(ctx context.Context, transactionID string, status ticket.TransactionStatus) error {

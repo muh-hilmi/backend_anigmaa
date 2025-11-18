@@ -446,6 +446,32 @@ func (uc *Usecase) VerifyEmail(ctx context.Context, userID uuid.UUID) error {
 	return uc.userRepo.Update(ctx, existingUser)
 }
 
+// ChangePassword changes a user's password
+func (uc *Usecase) ChangePassword(ctx context.Context, userID uuid.UUID, req *user.ChangePasswordRequest) error {
+	// Get existing user
+	existingUser, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	// Verify current password
+	if err := password.Verify(existingUser.PasswordHash, req.CurrentPassword); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	// Hash new password
+	hashedPassword, err := password.Hash(req.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	// Update password
+	existingUser.PasswordHash = hashedPassword
+	existingUser.UpdatedAt = time.Now()
+
+	return uc.userRepo.Update(ctx, existingUser)
+}
+
 // DeleteAccount deletes a user account
 func (uc *Usecase) DeleteAccount(ctx context.Context, userID uuid.UUID) error {
 	// Check if user exists

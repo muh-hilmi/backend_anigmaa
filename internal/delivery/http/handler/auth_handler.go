@@ -280,6 +280,64 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	response.Success(c, http.StatusOK, "Email verified successfully", nil)
 }
 
+// ChangePassword godoc
+// @Summary Change password
+// @Description Change the current user's password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body user.ChangePasswordRequest true "Password change data"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/change-password [post]
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	var req user.ChangePasswordRequest
+
+	// Parse request body
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body", err.Error())
+		return
+	}
+
+	// Validate request
+	if err := h.validator.Validate(&req); err != nil {
+		response.BadRequest(c, "Validation failed", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.userUsecase.ChangePassword(c.Request.Context(), userID, &req); err != nil {
+		if err == userUsecase.ErrInvalidCredentials {
+			response.Unauthorized(c, "Current password is incorrect")
+			return
+		}
+		if err == userUsecase.ErrUserNotFound {
+			response.NotFound(c, "User not found")
+			return
+		}
+		response.InternalError(c, "Failed to change password", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Password changed successfully", nil)
+}
+
 // GetMe godoc
 // @Summary Get current user
 // @Description Get the profile of the currently authenticated user

@@ -200,6 +200,7 @@ func main() {
 		{
 			authProtected.POST("/logout", authHandler.Logout)
 			authProtected.POST("/refresh", authHandler.RefreshToken)
+			authProtected.POST("/change-password", authHandler.ChangePassword)
 		}
 
 		// User routes
@@ -236,6 +237,7 @@ func main() {
 			eventsProtected.POST("/:id/join", eventHandler.JoinEvent)
 			eventsProtected.DELETE("/:id/join", eventHandler.LeaveEvent)
 			eventsProtected.GET("/my-events", eventHandler.GetMyEvents)
+			eventsProtected.GET("/hosted", eventHandler.GetHostedEvents)
 			eventsProtected.GET("/joined", eventHandler.GetJoinedEvents)
 
 			// Event Q&A endpoints
@@ -294,6 +296,7 @@ func main() {
 			tickets.GET("/:id", ticketHandler.GetTicketByID)
 			tickets.POST("/check-in", ticketHandler.CheckIn)
 			tickets.POST("/:id/cancel", ticketHandler.CancelTicket)
+			tickets.GET("/transactions/:id", ticketHandler.GetTransaction)
 		}
 
 		// Event tickets (host only)

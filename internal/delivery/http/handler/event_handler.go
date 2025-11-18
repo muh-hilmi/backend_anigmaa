@@ -507,6 +507,47 @@ func (h *EventHandler) GetMyEvents(c *gin.Context) {
 	response.Success(c, http.StatusOK, "Events retrieved successfully", events)
 }
 
+// GetHostedEvents godoc
+// @Summary Get hosted events
+// @Description Get events hosted/created by the current user
+// @Tags events
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {object} response.Response{data=[]event.EventWithDetails}
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /events/hosted [get]
+func (h *EventHandler) GetHostedEvents(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse query parameters
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	// Call usecase - GetByHost returns events created by the host
+	events, err := h.eventUsecase.GetByHost(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "Failed to get hosted events", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Hosted events retrieved successfully", events)
+}
+
 // GetJoinedEvents godoc
 // @Summary Get joined events
 // @Description Get events that the current user has joined

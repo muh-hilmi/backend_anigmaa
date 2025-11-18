@@ -109,6 +109,12 @@ type GoogleAuthRequest struct {
 	IDToken string `json:"idToken" binding:"required"`
 }
 
+// ChangePasswordRequest represents password change data
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+}
+
 // ProfileResponse represents public profile data for API response
 type ProfileResponse struct {
 	ID                      uuid.UUID  `json:"id"`
