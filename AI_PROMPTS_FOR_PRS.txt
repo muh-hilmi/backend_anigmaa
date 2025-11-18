@@ -1,0 +1,1891 @@
+================================================================================
+                    ANIGMAA APP - AI PROMPTS FOR PRODUCTION FIXES
+================================================================================
+
+CRITICAL: FIELD NAME MAPPING REFERENCE (NO MISMATCHES!)
+========================================================================
+
+Backend (Go) JSON Tags           Frontend (Flutter) Model Fields
+-----------------------------------------------------------------------
+access_token                     accessToken
+refresh_token                    refreshToken
+user_id                          userId
+email                            email
+name                             name
+avatar_url                       avatarUrl
+is_verified                      isVerified
+created_at                       createdAt
+updated_at                       updatedAt
+event_id                         eventId
+post_id                          postId
+attendees_count                  attendeesCount
+max_attendees                    maxAttendees
+location_name                    locationName
+location_address                 locationAddress
+location_lat                     latitude (or locationLat)
+location_lng                     longitude (or locationLng)
+start_time                       startTime
+end_time                         endTime
+image_urls                       imageUrls
+is_free                          isFree
+host_id                          hostId
+host_name                        hostName
+host_avatar_url                  hostAvatarUrl
+host_is_verified                 hostIsVerified
+host_rating                      hostRating
+host_events_hosted               eventsHosted
+likes_count                      likesCount
+comments_count                   commentsCount
+reposts_count                    repostsCount
+shares_count                     sharesCount
+original_post_id                 originalPostId
+attached_event_id                attachedEventId
+pending_requests                 pendingRequests
+
+RULE: Backend MUST use snake_case in JSON tags
+RULE: Frontend MUST parse both snake_case and camelCase for compatibility
+
+
+================================================================================
+BACKEND PR #1: Security & Authentication Fixes (P0 - CRITICAL)
+================================================================================
+
+CONTEXT:
+You are fixing critical security vulnerabilities in a Go backend using Gin framework,
+PostgreSQL, and JWT authentication. The app is a social event platform.
+
+CURRENT ISSUES:
+1. Auth response returns "token" field but Flutter expects "access_token"
+2. No rate limiting on sensitive endpoints (login, register, password reset)
+3. Missing email verification flow
+4. Missing password reset functionality
+5. JWT tokens never expire or get blacklisted
+6. No input sanitization for XSS prevention
+7. Passwords may not meet security requirements
+
+FILES TO MODIFY:
+- internal/api/v1/handlers/auth_handler.go
+- internal/service/auth_service.go
+- internal/domain/user/entity.go
+- internal/middleware/rate_limit.go (CREATE NEW)
+- internal/middleware/auth.go
+
+EXACT CHANGES REQUIRED:
+
+1. FIX AUTH RESPONSE FORMAT (internal/api/v1/handlers/auth_handler.go):
+
+   CHANGE LOGIN/REGISTER RESPONSE FROM:
+   {
+       "token": "eyJhbGc...",
+       "user": {...}
+   }
+
+   TO:
+   {
+       "access_token": "eyJhbGc...",
+       "refresh_token": "eyJhbGc...",
+       "expires_in": 3600,
+       "token_type": "Bearer",
+       "user": {
+           "id": "uuid",
+           "email": "user@example.com",
+           "name": "User Name",
+           "avatar_url": "https://...",
+           "is_verified": false,
+           "created_at": "2025-01-01T00:00:00Z"
+       }
+   }
+
+2. IMPLEMENT RATE LIMITING MIDDLEWARE (CREATE: internal/middleware/rate_limit.go):
+
+   - Use golang.org/x/time/rate or github.com/ulule/limiter
+   - Apply limits:
+     * Login: 5 requests per minute per IP
+     * Register: 3 requests per hour per IP
+     * Password reset: 3 requests per hour per email
+     * General API: 100 requests per minute per user
+
+   - Return 429 Too Many Requests with:
+   {
+       "error": "rate_limit_exceeded",
+       "message": "Too many requests. Please try again later.",
+       "retry_after": 60
+   }
+
+3. ADD EMAIL VERIFICATION (internal/service/auth_service.go):
+
+   - Generate verification token (UUID) on registration
+   - Store in users table: email_verification_token, email_verified_at
+   - Send verification email with link: /api/v1/auth/verify-email?token=xxx
+   - Block login if email not verified
+   - Add endpoint: POST /api/v1/auth/resend-verification
+
+4. ADD PASSWORD RESET FLOW (internal/service/auth_service.go):
+
+   - Add endpoints:
+     * POST /api/v1/auth/forgot-password (accepts email)
+     * POST /api/v1/auth/reset-password (accepts token + new password)
+
+   - Add to users table:
+     * password_reset_token VARCHAR(255)
+     * password_reset_expires_at TIMESTAMP
+
+   - Token expires in 1 hour
+   - Invalidate token after use
+
+5. IMPLEMENT TOKEN BLACKLIST (internal/service/auth_service.go):
+
+   - Create table: token_blacklist (token_jti VARCHAR PRIMARY KEY, expires_at TIMESTAMP)
+   - Add JTI claim to JWT tokens
+   - On logout: Add token JTI to blacklist
+   - Check blacklist in auth middleware before allowing request
+
+6. ADD PASSWORD VALIDATION (internal/service/auth_service.go):
+
+   - Minimum 8 characters
+   - Must contain: uppercase, lowercase, number, special character
+   - Not in common password list
+   - Return clear error message on validation failure
+
+7. ADD INPUT SANITIZATION (internal/middleware/sanitize.go - CREATE NEW):
+
+   - Use bluemonday or similar
+   - Sanitize all string inputs in request bodies
+   - Apply to: name, bio, post content, event descriptions
+   - Strip HTML tags, escape special characters
+
+VALIDATION RULES:
+- All auth responses MUST include "access_token" not "token"
+- Rate limiting MUST be applied before handler execution
+- Email verification MUST block unverified users from login
+- JWT tokens MUST include exp claim (3600 seconds)
+- JWT tokens MUST include jti claim for blacklisting
+- Password reset tokens MUST expire after 1 hour
+- All errors MUST return consistent JSON format
+
+ACCEPTANCE CRITERIA:
+✓ Flutter can parse login/register responses without errors
+✓ Rate limiting returns 429 after limit exceeded
+✓ Unverified users cannot login
+✓ Password reset flow works end-to-end
+✓ Logout invalidates token immediately
+✓ Weak passwords are rejected with clear message
+✓ XSS attempts are blocked by sanitization
+
+FIELD MAPPINGS TO REMEMBER:
+Backend JSON -> Frontend Dart
+- access_token -> accessToken
+- refresh_token -> refreshToken
+- expires_in -> expiresIn
+- token_type -> tokenType
+- is_verified -> isVerified
+- created_at -> createdAt
+- avatar_url -> avatarUrl
+
+
+================================================================================
+BACKEND PR #2: Complete Post Repository Implementation (P0 - CRITICAL)
+================================================================================
+
+CONTEXT:
+You are implementing the complete post repository for a social media feed in a Go backend.
+Currently, all repository methods return nil/empty with TODO comments. The GetFeed method
+is already implemented and working correctly - use it as reference for patterns.
+
+CURRENT ISSUES:
+- All CRUD methods are stubbed with TODO
+- No transaction support for multi-step operations
+- Missing batch operations for images
+- Counter increment/decrement methods not implemented
+- No support for filtering user posts
+
+FILES TO MODIFY:
+- internal/repository/postgres/post_repo.go (lines 23-300)
+
+REFERENCE IMPLEMENTATION:
+The GetFeed method (lines 61-238) is fully implemented and working. Use the same patterns:
+- JOIN with users table to get author info
+- LEFT JOIN with events table for attached events
+- Subquery for image_urls using json_agg
+- Subquery for attendees_count
+- EXISTS clauses for is_liked_by_user, is_bookmarked_by_user, is_reposted_by_user
+- Proper null handling for optional fields
+
+EXACT CHANGES REQUIRED:
+
+1. IMPLEMENT Create METHOD (lines 23-26):
+
+   - Accept *post.Post parameter
+   - Generate new UUID for ID if empty
+   - Set created_at and updated_at to now
+   - Set initial counts to 0
+   - Insert into posts table
+   - Return error if duplicate or constraint violation
+
+   SQL:
+   INSERT INTO posts (id, author_id, content, type, attached_event_id, original_post_id,
+                      visibility, created_at, updated_at, likes_count, comments_count,
+                      reposts_count, shares_count)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, 0, 0)
+
+2. IMPLEMENT GetByID METHOD (lines 28-32):
+
+   - Accept postID uuid.UUID
+   - Return basic post without joins (lightweight)
+   - Return sql.ErrNoRows if not found
+
+   SQL:
+   SELECT id, author_id, content, type, attached_event_id, original_post_id, visibility,
+          created_at, updated_at, likes_count, comments_count, reposts_count, shares_count
+   FROM posts WHERE id = $1
+
+3. IMPLEMENT GetWithDetails METHOD (lines 34-38):
+
+   - Accept postID and userID uuid.UUID
+   - Return *post.PostWithDetails (full post with all joins)
+   - Use same JOIN pattern as GetFeed:
+     * INNER JOIN users for author info
+     * LEFT JOIN events for attached event
+     * LEFT JOIN users again for event host
+     * Subquery for image_urls
+     * Subquery for event_image_urls
+     * EXISTS for is_liked_by_user
+     * EXISTS for is_bookmarked_by_user
+     * EXISTS for is_reposted_by_user
+
+   - Handle all nullable fields properly
+   - Parse JSON arrays for image URLs
+
+4. IMPLEMENT Update METHOD (lines 40-44):
+
+   - Accept *post.Post parameter
+   - Only update: content, visibility, updated_at
+   - Do NOT update: counts, author_id, created_at, type
+   - Set updated_at to now
+   - Return error if post not found
+
+   SQL:
+   UPDATE posts
+   SET content = $1, visibility = $2, updated_at = $3
+   WHERE id = $4
+
+5. IMPLEMENT Delete METHOD (lines 46-50):
+
+   - Accept postID uuid.UUID
+   - Use soft delete: Add deleted_at TIMESTAMP column to posts table
+   - Set deleted_at to now instead of actual deletion
+   - Add WHERE deleted_at IS NULL to all other queries
+
+   SQL:
+   UPDATE posts SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL
+
+6. IMPLEMENT List METHOD (lines 52-56):
+
+   - Accept *post.PostFilter and userID uuid.UUID
+   - Apply filters: author_id, type, visibility
+   - Use same JOIN pattern as GetFeed
+   - Support pagination with limit and offset
+   - Order by created_at DESC
+   - Return []post.PostWithDetails
+
+7. IMPLEMENT GetUserPosts METHOD (lines 241-245):
+
+   - Accept authorID, viewerID uuid.UUID, limit, offset int
+   - Similar to List but hardcoded author filter
+   - If viewerID == authorID: show all posts
+   - If viewerID != authorID: show only public + followers (check follow relationship)
+   - Use same JOIN pattern as GetFeed
+   - Order by created_at DESC
+
+8. IMPLEMENT AddImages METHOD (lines 247-251):
+
+   - Accept []post.PostImage
+   - Use transaction for batch insert
+   - Insert all images in single transaction
+   - Set order_index automatically (0, 1, 2, 3)
+   - Maximum 4 images per post
+
+   SQL:
+   INSERT INTO post_images (id, post_id, image_url, order_index)
+   VALUES ($1, $2, $3, $4)
+
+9. IMPLEMENT GetImages METHOD (lines 253-257):
+
+   - Accept postID uuid.UUID
+   - Return []string (just the URLs)
+   - Order by order_index ASC
+
+   SQL:
+   SELECT image_url FROM post_images WHERE post_id = $1 ORDER BY order_index ASC
+
+10. IMPLEMENT INCREMENT/DECREMENT METHODS (lines 259-299):
+
+    - IncrementLikes: UPDATE posts SET likes_count = likes_count + 1 WHERE id = $1
+    - DecrementLikes: UPDATE posts SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $1
+    - IncrementComments: UPDATE posts SET comments_count = comments_count + 1 WHERE id = $1
+    - DecrementComments: UPDATE posts SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = $1
+    - IncrementReposts: UPDATE posts SET reposts_count = reposts_count + 1 WHERE id = $1
+    - DecrementReposts: UPDATE posts SET reposts_count = GREATEST(reposts_count - 1, 0) WHERE id = $1
+    - IncrementShares: UPDATE posts SET shares_count = shares_count + 1 WHERE id = $1
+
+    - Use GREATEST to prevent negative counts
+    - Execute in single query (atomic)
+
+VALIDATION RULES:
+- All methods MUST handle context cancellation
+- All queries MUST use parameterized statements (no SQL injection)
+- GetWithDetails MUST return same structure as GetFeed items
+- Soft delete MUST be applied consistently
+- Image order MUST be preserved
+- Counter decrements MUST never go below 0
+
+ACCEPTANCE CRITERIA:
+✓ Create post returns new UUID
+✓ GetWithDetails returns identical structure to GetFeed
+✓ Update only modifies allowed fields
+✓ Delete sets deleted_at instead of removing row
+✓ List respects all filter parameters
+✓ GetUserPosts respects privacy settings
+✓ AddImages maintains order correctly
+✓ Increment/Decrement methods are atomic and prevent negative values
+✓ All methods handle errors gracefully
+
+FIELD MAPPINGS FOR RESPONSE:
+Backend JSON -> Frontend Dart
+- author_id -> authorId
+- attached_event_id -> attachedEventId
+- original_post_id -> originalPostId
+- created_at -> createdAt
+- updated_at -> updatedAt
+- likes_count -> likesCount
+- comments_count -> commentsCount
+- reposts_count -> repostsCount
+- shares_count -> sharesCount
+- image_urls -> imageUrls
+
+
+================================================================================
+BACKEND PR #3: Database Optimizations & Race Condition Fixes (P1)
+================================================================================
+
+CONTEXT:
+You are fixing database performance issues and race conditions in a Go backend.
+The app uses PostgreSQL with sqlx. Current issues include N+1 queries and race
+conditions in counter updates.
+
+CURRENT ISSUES:
+1. N+1 query in GetFeed for images (one query per post)
+2. Race conditions when multiple users like/unlike simultaneously
+3. No database indexes on frequently queried fields
+4. Missing foreign key constraints
+5. Counter updates not atomic
+
+FILES TO MODIFY:
+- internal/repository/postgres/post_repo.go (GetFeed method already fixed)
+- internal/repository/postgres/event_repo.go
+- migrations/new_migration.sql (CREATE NEW)
+
+EXACT CHANGES REQUIRED:
+
+1. VERIFY GETFEED N+1 FIX IS CORRECT (internal/repository/postgres/post_repo.go):
+
+   The GetFeed method ALREADY uses json_agg to fetch all images in single query:
+
+   COALLESCE(
+       (SELECT json_agg(image_url ORDER BY order_index)
+        FROM post_images WHERE post_id = p.id), '[]'::json
+   ) as image_urls
+
+   This is CORRECT. No changes needed. Use this pattern for other methods.
+
+2. FIX EVENT REPOSITORY N+1 QUERIES (internal/repository/postgres/event_repo.go):
+
+   Apply same json_agg pattern for event_images and event_attendees:
+
+   COALESCE(
+       (SELECT json_agg(image_url ORDER BY order_index)
+        FROM event_images WHERE event_id = e.id), '[]'::json
+   ) as image_urls,
+   COALESCE(
+       (SELECT json_agg(user_id)
+        FROM event_attendees WHERE event_id = e.id AND status = 'confirmed'), '[]'::json
+   ) as attendee_ids
+
+3. ADD ATOMIC COUNTER UPDATES (internal/repository/postgres/likes_repo.go):
+
+   Wrap like/unlike operations in transactions:
+
+   BEGIN;
+   INSERT INTO likes (id, user_id, likeable_type, likeable_id, created_at)
+   VALUES ($1, $2, $3, $4, NOW())
+   ON CONFLICT (user_id, likeable_type, likeable_id) DO NOTHING;
+
+   UPDATE posts SET likes_count = likes_count + 1 WHERE id = $4;
+   COMMIT;
+
+   For unlike:
+   BEGIN;
+   DELETE FROM likes WHERE user_id = $1 AND likeable_type = $2 AND likeable_id = $3;
+   UPDATE posts SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = $3;
+   COMMIT;
+
+4. CREATE DATABASE INDEXES (migrations/XXX_add_indexes.sql):
+
+   CREATE INDEX CONCURRENTLY idx_posts_author_created ON posts(author_id, created_at DESC);
+   CREATE INDEX CONCURRENTLY idx_posts_visibility_created ON posts(visibility, created_at DESC);
+   CREATE INDEX CONCURRENTLY idx_events_category_start ON events(category, start_time);
+   CREATE INDEX CONCURRENTLY idx_events_location_start ON events USING gist(
+       ll_to_earth(location_lat, location_lng), start_time
+   );
+   CREATE INDEX CONCURRENTLY idx_likes_user_type_id ON likes(user_id, likeable_type, likeable_id);
+   CREATE INDEX CONCURRENTLY idx_event_attendees_event_status ON event_attendees(event_id, status);
+   CREATE INDEX CONCURRENTLY idx_post_images_post_order ON post_images(post_id, order_index);
+
+   CREATE INDEX CONCURRENTLY idx_posts_deleted ON posts(deleted_at) WHERE deleted_at IS NULL;
+
+5. ADD MISSING FOREIGN KEY CONSTRAINTS (migrations/XXX_add_foreign_keys.sql):
+
+   ALTER TABLE posts
+       ADD CONSTRAINT fk_posts_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+       ADD CONSTRAINT fk_posts_event FOREIGN KEY (attached_event_id) REFERENCES events(id) ON DELETE SET NULL,
+       ADD CONSTRAINT fk_posts_original FOREIGN KEY (original_post_id) REFERENCES posts(id) ON DELETE CASCADE;
+
+   ALTER TABLE post_images
+       ADD CONSTRAINT fk_post_images_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE;
+
+   ALTER TABLE event_attendees
+       ADD CONSTRAINT fk_event_attendees_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+       ADD CONSTRAINT fk_event_attendees_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+   ALTER TABLE likes
+       ADD CONSTRAINT fk_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+6. ADD DATABASE CONSTRAINTS (migrations/XXX_add_constraints.sql):
+
+   ALTER TABLE posts
+       ADD CONSTRAINT chk_posts_likes_positive CHECK (likes_count >= 0),
+       ADD CONSTRAINT chk_posts_comments_positive CHECK (comments_count >= 0),
+       ADD CONSTRAINT chk_posts_reposts_positive CHECK (reposts_count >= 0),
+       ADD CONSTRAINT chk_posts_shares_positive CHECK (shares_count >= 0);
+
+   ALTER TABLE events
+       ADD CONSTRAINT chk_events_attendees_capacity CHECK (
+           (SELECT COUNT(*) FROM event_attendees WHERE event_id = events.id) <= max_attendees
+       ),
+       ADD CONSTRAINT chk_events_times CHECK (end_time > start_time);
+
+   ALTER TABLE post_images
+       ADD CONSTRAINT chk_post_images_order CHECK (order_index >= 0 AND order_index < 4);
+
+VALIDATION RULES:
+- All queries that fetch collections MUST use json_agg or similar
+- All counter updates MUST be in transactions with the related insert/delete
+- All indexes MUST use CONCURRENTLY to avoid blocking
+- All foreign keys MUST specify ON DELETE behavior
+- All constraints MUST prevent invalid data states
+
+ACCEPTANCE CRITERIA:
+✓ No N+1 queries in any repository method
+✓ Like/unlike operations are atomic (no race conditions)
+✓ Query performance improves significantly with indexes
+✓ Orphaned records are prevented by foreign keys
+✓ Invalid data states are prevented by constraints
+✓ Migrations can run on production without downtime
+
+NO FIELD MAPPINGS NEEDED (This PR is database-only)
+
+
+================================================================================
+BACKEND PR #4: API Consistency & Standards (P1)
+================================================================================
+
+CONTEXT:
+You are standardizing API responses and error handling across a Go backend using Gin.
+Currently, responses are inconsistent and errors don't follow a standard format.
+
+CURRENT ISSUES:
+1. Some endpoints return { "data": {...} }, others return data directly
+2. Error format varies across handlers
+3. No standard pagination format
+4. Missing CORS headers
+5. No API versioning in some routes
+6. No request/response logging
+7. No health check endpoint
+
+FILES TO MODIFY:
+- internal/api/v1/handlers/*.go (all handlers)
+- internal/middleware/response.go (CREATE NEW)
+- internal/middleware/logger.go (CREATE NEW)
+- main.go
+
+EXACT CHANGES REQUIRED:
+
+1. STANDARDIZE SUCCESS RESPONSE FORMAT (CREATE: internal/middleware/response.go):
+
+   type SuccessResponse struct {
+       Success bool        `json:"success"`
+       Data    interface{} `json:"data"`
+       Meta    *Meta       `json:"meta,omitempty"`
+   }
+
+   type Meta struct {
+       Total      int `json:"total,omitempty"`
+       Page       int `json:"page,omitempty"`
+       PageSize   int `json:"page_size,omitempty"`
+       TotalPages int `json:"total_pages,omitempty"`
+   }
+
+   ALL successful responses MUST use this format:
+   {
+       "success": true,
+       "data": { ... },
+       "meta": { "total": 100, "page": 1, "page_size": 20, "total_pages": 5 }
+   }
+
+2. STANDARDIZE ERROR RESPONSE FORMAT (internal/middleware/response.go):
+
+   type ErrorResponse struct {
+       Success bool   `json:"success"`
+       Error   string `json:"error"`
+       Message string `json:"message"`
+       Code    int    `json:"code"`
+   }
+
+   ALL error responses MUST use this format:
+   {
+       "success": false,
+       "error": "validation_error",
+       "message": "Email is required",
+       "code": 400
+   }
+
+   Common error codes:
+   - validation_error (400)
+   - unauthorized (401)
+   - forbidden (403)
+   - not_found (404)
+   - conflict (409)
+   - rate_limit_exceeded (429)
+   - internal_server_error (500)
+
+3. IMPLEMENT RESPONSE HELPER FUNCTIONS (internal/middleware/response.go):
+
+   func SendSuccess(c *gin.Context, data interface{}) {
+       c.JSON(http.StatusOK, SuccessResponse{Success: true, Data: data})
+   }
+
+   func SendSuccessWithMeta(c *gin.Context, data interface{}, meta *Meta) {
+       c.JSON(http.StatusOK, SuccessResponse{Success: true, Data: data, Meta: meta})
+   }
+
+   func SendError(c *gin.Context, code int, errorCode, message string) {
+       c.JSON(code, ErrorResponse{Success: false, Error: errorCode, Message: message, Code: code})
+   }
+
+   func SendValidationError(c *gin.Context, message string) {
+       SendError(c, 400, "validation_error", message)
+   }
+
+   func SendUnauthorized(c *gin.Context, message string) {
+       SendError(c, 401, "unauthorized", message)
+   }
+
+   func SendNotFound(c *gin.Context, message string) {
+       SendError(c, 404, "not_found", message)
+   }
+
+4. APPLY STANDARD RESPONSES TO ALL HANDLERS:
+
+   Replace all instances of:
+   c.JSON(200, someData)
+   c.JSON(400, gin.H{"error": "..."})
+
+   With:
+   response.SendSuccess(c, someData)
+   response.SendValidationError(c, "...")
+
+5. STANDARDIZE PAGINATION:
+
+   All list endpoints MUST accept and return:
+
+   Query params:
+   ?page=1&page_size=20
+
+   Response:
+   {
+       "success": true,
+       "data": [...],
+       "meta": {
+           "total": 100,
+           "page": 1,
+           "page_size": 20,
+           "total_pages": 5
+       }
+   }
+
+   Default page_size: 20
+   Max page_size: 100
+
+6. ADD REQUEST/RESPONSE LOGGING (CREATE: internal/middleware/logger.go):
+
+   func Logger() gin.HandlerFunc {
+       return func(c *gin.Context) {
+           start := time.Now()
+           path := c.Request.URL.Path
+           method := c.Request.Method
+
+           // Log request
+           log.Printf("[%s] %s - Start", method, path)
+
+           c.Next()
+
+           // Log response
+           latency := time.Since(start)
+           statusCode := c.Writer.Status()
+           log.Printf("[%s] %s - %d (%v)", method, path, statusCode, latency)
+       }
+   }
+
+   Apply to all routes in main.go
+
+7. ADD CORS MIDDLEWARE (main.go):
+
+   import "github.com/gin-contrib/cors"
+
+   router.Use(cors.New(cors.Config{
+       AllowOrigins:     []string{"*"},
+       AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+       AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+       ExposeHeaders:    []string{"Content-Length"},
+       AllowCredentials: true,
+       MaxAge:           12 * time.Hour,
+   }))
+
+8. ADD HEALTH CHECK ENDPOINT (internal/api/v1/handlers/health_handler.go):
+
+   GET /api/v1/health
+
+   Response:
+   {
+       "success": true,
+       "data": {
+           "status": "ok",
+           "timestamp": "2025-01-13T10:00:00Z",
+           "version": "1.0.0",
+           "database": "connected"
+       }
+   }
+
+   Check database connection and return error if down.
+
+9. ENSURE ALL ROUTES USE /api/v1 PREFIX (main.go):
+
+   v1 := router.Group("/api/v1")
+   {
+       auth := v1.Group("/auth")
+       posts := v1.Group("/posts")
+       events := v1.Group("/events")
+       users := v1.Group("/users")
+   }
+
+VALIDATION RULES:
+- ALL responses MUST include "success" field
+- ALL errors MUST use standard ErrorResponse format
+- ALL list endpoints MUST support pagination
+- ALL routes MUST use /api/v1 prefix
+- ALL requests MUST be logged with latency
+
+ACCEPTANCE CRITERIA:
+✓ All responses have consistent structure
+✓ All errors use standard format with clear error codes
+✓ All list endpoints support pagination
+✓ CORS headers allow Flutter web client
+✓ Health check endpoint responds correctly
+✓ All requests are logged with method, path, status, latency
+✓ No routes exist without /api/v1 prefix
+
+FIELD MAPPINGS:
+Backend JSON -> Frontend Dart
+- page_size -> pageSize
+- total_pages -> totalPages
+
+
+================================================================================
+FRONTEND PR #1: Critical Model Fixes - Auth, UserModel, TicketModel (P0)
+================================================================================
+
+CONTEXT:
+You are fixing critical field mapping issues in Flutter models that prevent the app
+from parsing backend responses correctly. The backend uses snake_case JSON, and models
+must handle both snake_case and camelCase for compatibility.
+
+CURRENT ISSUES:
+1. AuthModel expects "accessToken" but backend sends "access_token"
+2. Duplicate UserModel definitions causing conflicts
+3. TicketModel uses camelCase but backend sends snake_case
+4. Missing fields in models
+5. No error handling for parsing failures
+
+FILES TO MODIFY:
+- lib/data/models/auth_model.dart
+- lib/data/models/user_model.dart (CONSOLIDATE DUPLICATES)
+- lib/data/models/ticket_model.dart
+- lib/core/error/error_handler.dart (CREATE NEW)
+
+EXACT CHANGES REQUIRED:
+
+1. FIX AUTH MODEL FIELD MAPPING (lib/data/models/auth_model.dart):
+
+   BACKEND SENDS:
+   {
+       "access_token": "eyJhbGc...",
+       "refresh_token": "eyJhbGc...",
+       "expires_in": 3600,
+       "token_type": "Bearer",
+       "user": {...}
+   }
+
+   CHANGE fromJson TO:
+
+   factory AuthModel.fromJson(Map<String, dynamic> json) {
+     // Support both snake_case (backend) and camelCase (legacy)
+     final accessToken = json['access_token'] ?? json['accessToken'];
+     final refreshToken = json['refresh_token'] ?? json['refreshToken'];
+     final expiresIn = json['expires_in'] ?? json['expiresIn'];
+     final tokenType = json['token_type'] ?? json['tokenType'];
+
+     if (accessToken == null) {
+       throw FormatException('Missing access_token in auth response');
+     }
+
+     return AuthModel(
+       accessToken: accessToken as String,
+       refreshToken: refreshToken as String?,
+       expiresIn: expiresIn as int? ?? 3600,
+       tokenType: tokenType as String? ?? 'Bearer',
+       user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
+     );
+   }
+
+   SEND TO BACKEND (toJson) AS:
+   {
+       "access_token": "...",
+       "refresh_token": "...",
+       "expires_in": 3600,
+       "token_type": "Bearer"
+   }
+
+2. CONSOLIDATE USER MODEL (lib/data/models/user_model.dart):
+
+   SEARCH FOR: All files importing UserModel
+   FIND: Duplicate definitions in different locations
+
+   KEEP ONLY ONE UserModel in lib/data/models/user_model.dart
+
+   BACKEND SENDS:
+   {
+       "id": "uuid",
+       "email": "user@example.com",
+       "name": "User Name",
+       "avatar_url": "https://...",
+       "is_verified": false,
+       "bio": "User bio",
+       "location": "City, Country",
+       "created_at": "2025-01-01T00:00:00Z",
+       "updated_at": "2025-01-01T00:00:00Z"
+   }
+
+   MODEL SHOULD BE:
+
+   class UserModel extends User {
+     const UserModel({
+       required super.id,
+       required super.email,
+       required super.name,
+       super.avatarUrl,
+       super.isVerified = false,
+       super.bio,
+       super.location,
+       super.createdAt,
+       super.updatedAt,
+     });
+
+     factory UserModel.fromJson(Map<String, dynamic> json) {
+       final avatarUrl = json['avatar_url'] ?? json['avatarUrl'];
+       final isVerified = json['is_verified'] ?? json['isVerified'];
+       final createdAt = json['created_at'] ?? json['createdAt'];
+       final updatedAt = json['updated_at'] ?? json['updatedAt'];
+
+       return UserModel(
+         id: json['id'] as String,
+         email: json['email'] as String,
+         name: json['name'] as String,
+         avatarUrl: avatarUrl as String?,
+         isVerified: isVerified as bool? ?? false,
+         bio: json['bio'] as String?,
+         location: json['location'] as String?,
+         createdAt: createdAt != null ? DateTime.parse(createdAt as String) : null,
+         updatedAt: updatedAt != null ? DateTime.parse(updatedAt as String) : null,
+       );
+     }
+
+     Map<String, dynamic> toJson() {
+       return {
+         'id': id,
+         'email': email,
+         'name': name,
+         'avatar_url': avatarUrl,
+         'is_verified': isVerified,
+         'bio': bio,
+         'location': location,
+         'created_at': createdAt?.toIso8601String(),
+         'updated_at': updatedAt?.toIso8601String(),
+       };
+     }
+   }
+
+   UPDATE ALL IMPORTS to use this single definition
+
+3. FIX TICKET MODEL (lib/data/models/ticket_model.dart):
+
+   BACKEND SENDS:
+   {
+       "id": "uuid",
+       "event_id": "uuid",
+       "user_id": "uuid",
+       "ticket_number": "TICK-12345",
+       "qr_code": "base64...",
+       "status": "active",
+       "purchased_at": "2025-01-01T00:00:00Z",
+       "check_in_at": null,
+       "event_title": "Event Name",
+       "event_date": "2025-01-15T10:00:00Z",
+       "event_location": "Venue Name"
+   }
+
+   CHANGE ALL FIELDS TO snake_case in fromJson:
+
+   factory TicketModel.fromJson(Map<String, dynamic> json) {
+     final eventId = json['event_id'] ?? json['eventId'];
+     final userId = json['user_id'] ?? json['userId'];
+     final ticketNumber = json['ticket_number'] ?? json['ticketNumber'];
+     final qrCode = json['qr_code'] ?? json['qrCode'];
+     final purchasedAt = json['purchased_at'] ?? json['purchasedAt'];
+     final checkInAt = json['check_in_at'] ?? json['checkInAt'];
+     final eventTitle = json['event_title'] ?? json['eventTitle'];
+     final eventDate = json['event_date'] ?? json['eventDate'];
+     final eventLocation = json['event_location'] ?? json['eventLocation'];
+
+     return TicketModel(
+       id: json['id'] as String,
+       eventId: eventId as String,
+       userId: userId as String,
+       ticketNumber: ticketNumber as String,
+       qrCode: qrCode as String,
+       status: json['status'] as String,
+       purchasedAt: DateTime.parse(purchasedAt as String),
+       checkInAt: checkInAt != null ? DateTime.parse(checkInAt as String) : null,
+       eventTitle: eventTitle as String,
+       eventDate: DateTime.parse(eventDate as String),
+       eventLocation: eventLocation as String,
+     );
+   }
+
+   toJson MUST use snake_case:
+   {
+       'event_id': eventId,
+       'user_id': userId,
+       'ticket_number': ticketNumber,
+       'qr_code': qrCode,
+       'purchased_at': purchasedAt.toIso8601String(),
+       'check_in_at': checkInAt?.toIso8601String(),
+       'event_title': eventTitle,
+       'event_date': eventDate.toIso8601String(),
+       'event_location': eventLocation,
+   }
+
+4. CREATE ERROR HANDLER (lib/core/error/error_handler.dart):
+
+   class ParseException implements Exception {
+     final String message;
+     final dynamic json;
+     final String modelName;
+
+     ParseException(this.message, this.json, this.modelName);
+
+     @override
+     String toString() {
+       return 'ParseException($modelName): $message\nJSON: $json';
+     }
+   }
+
+   WRAP ALL fromJson IN try-catch:
+
+   factory SomeModel.fromJson(Map<String, dynamic> json) {
+     try {
+       // parsing logic
+       return SomeModel(...);
+     } catch (e, stackTrace) {
+       throw ParseException(
+         'Failed to parse $modelName: $e',
+         json,
+         'SomeModel',
+       );
+     }
+   }
+
+5. ADD NULL SAFETY CHECKS:
+
+   For all required fields, verify they exist:
+
+   final accessToken = json['access_token'] ?? json['accessToken'];
+   if (accessToken == null) {
+     throw ParseException('Missing required field: access_token', json, 'AuthModel');
+   }
+
+VALIDATION RULES:
+- ALL fromJson MUST check both snake_case and camelCase
+- ALL toJson MUST use snake_case (backend expects this)
+- ALL required fields MUST throw ParseException if missing
+- ALL DateTime fields MUST handle null gracefully
+- ALL models MUST wrap parsing in try-catch
+
+ACCEPTANCE CRITERIA:
+✓ AuthModel successfully parses backend login response
+✓ No duplicate UserModel compilation errors
+✓ TicketModel parses backend response correctly
+✓ Clear error messages when parsing fails
+✓ All models handle both snake_case and camelCase inputs
+✓ All models send snake_case to backend
+
+FIELD MAPPINGS TO IMPLEMENT:
+Backend snake_case -> Frontend camelCase (internal use)
+- access_token -> accessToken
+- refresh_token -> refreshToken
+- expires_in -> expiresIn
+- token_type -> tokenType
+- avatar_url -> avatarUrl
+- is_verified -> isVerified
+- created_at -> createdAt
+- updated_at -> updatedAt
+- event_id -> eventId
+- user_id -> userId
+- ticket_number -> ticketNumber
+- qr_code -> qrCode
+- purchased_at -> purchasedAt
+- check_in_at -> checkInAt
+- event_title -> eventTitle
+- event_date -> eventDate
+- event_location -> eventLocation
+
+SEND TO BACKEND (toJson): ALWAYS use snake_case
+
+
+================================================================================
+FRONTEND PR #2: Complete Event & Post Models (P0)
+================================================================================
+
+CONTEXT:
+You are completing the Event and Post models in Flutter to match the backend API
+response structure. The backend was recently updated to include attendees_count and
+other fields that the models don't yet parse correctly.
+
+CURRENT ISSUES:
+1. EventModel doesn't parse all fields from backend
+2. PostModel missing nested event parsing
+3. No support for pending_requests array
+4. Missing requirements field
+5. AttendeeIds generated incorrectly
+
+FILES TO MODIFY:
+- lib/data/models/event_model.dart
+- lib/data/models/post_model.dart (CREATE NEW if doesn't exist)
+- lib/domain/entities/event.dart
+- lib/domain/entities/post.dart (CREATE NEW if doesn't exist)
+
+EXACT CHANGES REQUIRED:
+
+1. COMPLETE EVENT MODEL (lib/data/models/event_model.dart):
+
+   BACKEND SENDS:
+   {
+       "id": "uuid",
+       "title": "Event Title",
+       "description": "Event description",
+       "category": "meetup",
+       "start_time": "2025-01-15T10:00:00Z",
+       "end_time": "2025-01-15T12:00:00Z",
+       "location_name": "Venue Name",
+       "location_address": "123 Street",
+       "location_lat": -6.2088,
+       "location_lng": 106.8456,
+       "venue": "Room A",
+       "host_id": "uuid",
+       "host_name": "Host Name",
+       "host_avatar_url": "https://...",
+       "host_bio": "Host bio",
+       "host_is_verified": true,
+       "host_rating": 4.5,
+       "host_events_hosted": 10,
+       "image_urls": ["url1", "url2"],
+       "max_attendees": 50,
+       "attendees_count": 25,
+       "attendee_ids": ["uuid1", "uuid2"],
+       "pending_requests": ["uuid3", "uuid4"],
+       "price": 50000.0,
+       "is_free": false,
+       "status": "upcoming",
+       "privacy": "public",
+       "requirements": "Bring ID"
+   }
+
+   UPDATE fromJson TO PARSE ALL FIELDS:
+
+   factory EventModel.fromJson(Map<String, dynamic> json) {
+     final startTime = json['start_time'] ?? json['startTime'];
+     final endTime = json['end_time'] ?? json['endTime'];
+     final imageUrls = json['image_urls'] ?? json['imageUrls'];
+     final maxAttendees = json['max_attendees'] ?? json['maxAttendees'];
+     final isFree = json['is_free'] ?? json['isFree'];
+     final pendingRequests = json['pending_requests'] ?? json['pendingRequests'];
+
+     // CRITICAL: Handle both attendee_ids and attendees_count
+     final attendeeIds = json['attendee_ids'] ?? json['attendeeIds'];
+     final attendeesCount = json['attendees_count'] ?? json['attendeesCount'];
+
+     // Parse location
+     EventLocationModel location;
+     if (json['location'] != null) {
+       location = EventLocationModel.fromJson(json['location']);
+     } else {
+       location = EventLocationModel(
+         name: json['location_name'] as String? ?? '',
+         address: json['location_address'] as String? ?? '',
+         latitude: (json['location_lat'] ?? json['latitude'])?.toDouble() ?? 0.0,
+         longitude: (json['location_lng'] ?? json['longitude'])?.toDouble() ?? 0.0,
+         venue: json['venue'] as String?,
+       );
+     }
+
+     // Parse host
+     EventHostModel host;
+     if (json['host'] != null) {
+       host = EventHostModel.fromJson(json['host']);
+     } else {
+       host = EventHostModel(
+         id: json['host_id'] as String? ?? '',
+         name: json['host_name'] as String? ?? 'Unknown',
+         avatar: json['host_avatar_url'] as String? ?? '',
+         bio: json['host_bio'] as String? ?? '',
+         isVerified: json['host_is_verified'] as bool? ?? false,
+         rating: json['host_rating']?.toDouble() ?? 0.0,
+         eventsHosted: json['host_events_hosted'] as int? ?? 0,
+       );
+     }
+
+     return EventModel(
+       id: json['id'] as String,
+       title: json['title'] as String,
+       description: json['description'] as String,
+       category: EventCategory.values.firstWhere(
+         (e) => e.toString().split('.').last == json['category'],
+         orElse: () => EventCategory.meetup,
+       ),
+       startTime: DateTime.parse(startTime as String),
+       endTime: DateTime.parse(endTime as String),
+       location: location,
+       host: host,
+       imageUrls: List<String>.from(imageUrls ?? []),
+       maxAttendees: maxAttendees as int,
+       // FIXED: Proper type inference with ternary
+       attendeeIds: attendeeIds != null
+           ? List<String>.from(attendeeIds)
+           : (attendeesCount != null
+               ? List<String>.generate(attendeesCount as int, (i) => 'attendee_$i')
+               : <String>[]),
+       price: json['price']?.toDouble(),
+       isFree: isFree as bool? ?? true,
+       status: EventStatus.values.firstWhere(
+         (e) => e.toString().split('.').last == json['status'],
+         orElse: () => EventStatus.upcoming,
+       ),
+       privacy: EventPrivacy.values.firstWhere(
+         (e) => e.toString().split('.').last == json['privacy'],
+         orElse: () => EventPrivacy.public,
+       ),
+       pendingRequests: List<String>.from(pendingRequests ?? []),
+       requirements: json['requirements'] as String?,
+     );
+   }
+
+   toJson MUST USE snake_case:
+
+   Map<String, dynamic> toJson() {
+     return {
+       'id': id,
+       'title': title,
+       'description': description,
+       'category': category.toString().split('.').last,
+       'start_time': startTime.toIso8601String(),
+       'end_time': endTime.toIso8601String(),
+       'location_name': location.name,
+       'location_address': location.address,
+       'location_lat': location.latitude,
+       'location_lng': location.longitude,
+       'venue': location.venue,
+       'host_id': host.id,
+       'host_name': host.name,
+       'host_avatar_url': host.avatar,
+       'host_bio': host.bio,
+       'host_is_verified': host.isVerified,
+       'host_rating': host.rating,
+       'host_events_hosted': host.eventsHosted,
+       'image_urls': imageUrls,
+       'max_attendees': maxAttendees,
+       'attendee_ids': attendeeIds,
+       'price': price,
+       'is_free': isFree,
+       'status': status.toString().split('.').last,
+       'privacy': privacy.toString().split('.').last,
+       'pending_requests': pendingRequests,
+       'requirements': requirements,
+     };
+   }
+
+2. CREATE/UPDATE POST MODEL (lib/data/models/post_model.dart):
+
+   BACKEND SENDS:
+   {
+       "id": "uuid",
+       "author": {
+           "id": "uuid",
+           "name": "Author Name",
+           "avatar_url": "https://...",
+           "is_verified": true
+       },
+       "content": "Post content",
+       "type": "text_with_event",
+       "image_urls": ["url1", "url2"],
+       "attached_event": {
+           "id": "uuid",
+           "title": "Event Title",
+           "description": "Event description",
+           "category": "meetup",
+           "start_time": "2025-01-15T10:00:00Z",
+           "end_time": "2025-01-15T12:00:00Z",
+           "location_name": "Venue Name",
+           "location_address": "123 Street",
+           "location_lat": -6.2088,
+           "location_lng": 106.8456,
+           "host_id": "uuid",
+           "host_name": "Host Name",
+           "host_avatar_url": "https://...",
+           "max_attendees": 50,
+           "attendees_count": 25,
+           "is_free": false,
+           "price": 50000.0,
+           "status": "upcoming",
+           "privacy": "public",
+           "image_urls": ["url1", "url2"]
+       },
+       "visibility": "public",
+       "created_at": "2025-01-13T10:00:00Z",
+       "updated_at": "2025-01-13T10:00:00Z",
+       "likes_count": 10,
+       "comments_count": 5,
+       "reposts_count": 2,
+       "shares_count": 1,
+       "is_liked_by_current_user": false,
+       "is_reposted_by_current_user": false,
+       "is_bookmarked": false,
+       "hashtags": ["tag1", "tag2"],
+       "mentions": ["user1", "user2"]
+   }
+
+   CREATE PostModel:
+
+   import '../../domain/entities/post.dart';
+   import '../../domain/entities/event.dart';
+   import 'event_model.dart';
+
+   class PostModel extends Post {
+     const PostModel({
+       required super.id,
+       required super.author,
+       required super.content,
+       required super.type,
+       super.imageUrls = const [],
+       super.attachedEvent,
+       required super.visibility,
+       required super.createdAt,
+       required super.updatedAt,
+       super.likesCount = 0,
+       super.commentsCount = 0,
+       super.repostsCount = 0,
+       super.sharesCount = 0,
+       super.isLikedByCurrentUser = false,
+       super.isRepostedByCurrentUser = false,
+       super.isBookmarked = false,
+       super.hashtags = const [],
+       super.mentions = const [],
+     });
+
+     factory PostModel.fromJson(Map<String, dynamic> json) {
+       try {
+         final imageUrls = json['image_urls'] ?? json['imageUrls'];
+         final attachedEvent = json['attached_event'] ?? json['attachedEvent'];
+         final createdAt = json['created_at'] ?? json['createdAt'];
+         final updatedAt = json['updated_at'] ?? json['updatedAt'];
+         final likesCount = json['likes_count'] ?? json['likesCount'];
+         final commentsCount = json['comments_count'] ?? json['commentsCount'];
+         final repostsCount = json['reposts_count'] ?? json['repostsCount'];
+         final sharesCount = json['shares_count'] ?? json['sharesCount'];
+         final isLiked = json['is_liked_by_current_user'] ?? json['isLikedByCurrentUser'];
+         final isReposted = json['is_reposted_by_current_user'] ?? json['isRepostedByCurrentUser'];
+         final isBookmarked = json['is_bookmarked'] ?? json['isBookmarked'];
+
+         return PostModel(
+           id: json['id'] as String,
+           author: AuthorModel.fromJson(json['author'] as Map<String, dynamic>),
+           content: json['content'] as String,
+           type: json['type'] as String,
+           imageUrls: imageUrls != null ? List<String>.from(imageUrls) : [],
+           attachedEvent: attachedEvent != null
+               ? EventSummaryModel.fromJson(attachedEvent as Map<String, dynamic>)
+               : null,
+           visibility: json['visibility'] as String,
+           createdAt: DateTime.parse(createdAt as String),
+           updatedAt: DateTime.parse(updatedAt as String),
+           likesCount: likesCount as int? ?? 0,
+           commentsCount: commentsCount as int? ?? 0,
+           repostsCount: repostsCount as int? ?? 0,
+           sharesCount: sharesCount as int? ?? 0,
+           isLikedByCurrentUser: isLiked as bool? ?? false,
+           isRepostedByCurrentUser: isReposted as bool? ?? false,
+           isBookmarked: isBookmarked as bool? ?? false,
+           hashtags: json['hashtags'] != null ? List<String>.from(json['hashtags']) : [],
+           mentions: json['mentions'] != null ? List<String>.from(json['mentions']) : [],
+         );
+       } catch (e, stackTrace) {
+         throw ParseException('Failed to parse PostModel: $e', json, 'PostModel');
+       }
+     }
+
+     Map<String, dynamic> toJson() {
+       return {
+         'id': id,
+         'author': (author as AuthorModel).toJson(),
+         'content': content,
+         'type': type,
+         'image_urls': imageUrls,
+         'attached_event': attachedEvent != null
+             ? (attachedEvent as EventSummaryModel).toJson()
+             : null,
+         'visibility': visibility,
+         'created_at': createdAt.toIso8601String(),
+         'updated_at': updatedAt.toIso8601String(),
+         'likes_count': likesCount,
+         'comments_count': commentsCount,
+         'reposts_count': repostsCount,
+         'shares_count': sharesCount,
+         'is_liked_by_current_user': isLikedByCurrentUser,
+         'is_reposted_by_current_user': isRepostedByCurrentUser,
+         'is_bookmarked': isBookmarked,
+         'hashtags': hashtags,
+         'mentions': mentions,
+       };
+     }
+   }
+
+   class AuthorModel {
+     final String id;
+     final String name;
+     final String? avatarUrl;
+     final bool isVerified;
+
+     AuthorModel({
+       required this.id,
+       required this.name,
+       this.avatarUrl,
+       this.isVerified = false,
+     });
+
+     factory AuthorModel.fromJson(Map<String, dynamic> json) {
+       final avatarUrl = json['avatar_url'] ?? json['avatarUrl'];
+       final isVerified = json['is_verified'] ?? json['isVerified'];
+
+       return AuthorModel(
+         id: json['id'] as String,
+         name: json['name'] as String,
+         avatarUrl: avatarUrl as String?,
+         isVerified: isVerified as bool? ?? false,
+       );
+     }
+
+     Map<String, dynamic> toJson() {
+       return {
+         'id': id,
+         'name': name,
+         'avatar_url': avatarUrl,
+         'is_verified': isVerified,
+       };
+     }
+   }
+
+   class EventSummaryModel {
+     final String id;
+     final String title;
+     final String? description;
+     final String category;
+     final DateTime startTime;
+     final DateTime? endTime;
+     final String locationName;
+     final String? locationAddress;
+     final double? locationLat;
+     final double? locationLng;
+     final String hostId;
+     final String hostName;
+     final String? hostAvatarUrl;
+     final int? maxAttendees;
+     final int attendeesCount;
+     final bool isFree;
+     final double? price;
+     final String? status;
+     final String? privacy;
+     final List<String> imageUrls;
+
+     EventSummaryModel({
+       required this.id,
+       required this.title,
+       this.description,
+       required this.category,
+       required this.startTime,
+       this.endTime,
+       required this.locationName,
+       this.locationAddress,
+       this.locationLat,
+       this.locationLng,
+       required this.hostId,
+       required this.hostName,
+       this.hostAvatarUrl,
+       this.maxAttendees,
+       required this.attendeesCount,
+       required this.isFree,
+       this.price,
+       this.status,
+       this.privacy,
+       this.imageUrls = const [],
+     });
+
+     factory EventSummaryModel.fromJson(Map<String, dynamic> json) {
+       final startTime = json['start_time'] ?? json['startTime'];
+       final endTime = json['end_time'] ?? json['endTime'];
+       final locationName = json['location_name'] ?? json['locationName'];
+       final locationAddress = json['location_address'] ?? json['locationAddress'];
+       final locationLat = json['location_lat'] ?? json['locationLat'] ?? json['latitude'];
+       final locationLng = json['location_lng'] ?? json['locationLng'] ?? json['longitude'];
+       final hostId = json['host_id'] ?? json['hostId'];
+       final hostName = json['host_name'] ?? json['hostName'];
+       final hostAvatarUrl = json['host_avatar_url'] ?? json['hostAvatarUrl'];
+       final maxAttendees = json['max_attendees'] ?? json['maxAttendees'];
+       final attendeesCount = json['attendees_count'] ?? json['attendeesCount'];
+       final isFree = json['is_free'] ?? json['isFree'];
+       final imageUrls = json['image_urls'] ?? json['imageUrls'];
+
+       return EventSummaryModel(
+         id: json['id'] as String,
+         title: json['title'] as String,
+         description: json['description'] as String?,
+         category: json['category'] as String,
+         startTime: DateTime.parse(startTime as String),
+         endTime: endTime != null ? DateTime.parse(endTime as String) : null,
+         locationName: locationName as String,
+         locationAddress: locationAddress as String?,
+         locationLat: locationLat?.toDouble(),
+         locationLng: locationLng?.toDouble(),
+         hostId: hostId as String,
+         hostName: hostName as String,
+         hostAvatarUrl: hostAvatarUrl as String?,
+         maxAttendees: maxAttendees as int?,
+         attendeesCount: attendeesCount as int? ?? 0,
+         isFree: isFree as bool? ?? true,
+         price: json['price']?.toDouble(),
+         status: json['status'] as String?,
+         privacy: json['privacy'] as String?,
+         imageUrls: imageUrls != null ? List<String>.from(imageUrls) : [],
+       );
+     }
+
+     Map<String, dynamic> toJson() {
+       return {
+         'id': id,
+         'title': title,
+         'description': description,
+         'category': category,
+         'start_time': startTime.toIso8601String(),
+         'end_time': endTime?.toIso8601String(),
+         'location_name': locationName,
+         'location_address': locationAddress,
+         'location_lat': locationLat,
+         'location_lng': locationLng,
+         'host_id': hostId,
+         'host_name': hostName,
+         'host_avatar_url': hostAvatarUrl,
+         'max_attendees': maxAttendees,
+         'attendees_count': attendeesCount,
+         'is_free': isFree,
+         'price': price,
+         'status': status,
+         'privacy': privacy,
+         'image_urls': imageUrls,
+       };
+     }
+   }
+
+VALIDATION RULES:
+- ALL fromJson MUST support both snake_case and camelCase
+- ALL toJson MUST use snake_case only
+- ALL nested objects MUST be parsed correctly
+- ALL arrays MUST have proper type casting
+- ALL DateTime fields MUST handle null gracefully
+
+ACCEPTANCE CRITERIA:
+✓ EventModel parses all fields from backend
+✓ PostModel parses nested event correctly
+✓ attendeeIds generated correctly based on attendeesCount
+✓ pendingRequests array parsed correctly
+✓ requirements field included
+✓ No type inference errors
+✓ All models handle both snake_case and camelCase inputs
+
+FIELD MAPPINGS:
+Backend snake_case -> Frontend camelCase (internal)
+- start_time -> startTime
+- end_time -> endTime
+- image_urls -> imageUrls
+- max_attendees -> maxAttendees
+- attendees_count -> attendeesCount
+- attendee_ids -> attendeeIds
+- is_free -> isFree
+- pending_requests -> pendingRequests
+- attached_event -> attachedEvent
+- created_at -> createdAt
+- updated_at -> updatedAt
+- likes_count -> likesCount
+- comments_count -> commentsCount
+- reposts_count -> repostsCount
+- shares_count -> sharesCount
+- is_liked_by_current_user -> isLikedByCurrentUser
+- is_reposted_by_current_user -> isRepostedByCurrentUser
+- is_bookmarked -> isBookmarked
+- location_name -> locationName
+- location_address -> locationAddress
+- location_lat -> locationLat (or latitude)
+- location_lng -> locationLng (or longitude)
+- host_id -> hostId
+- host_name -> hostName
+- host_avatar_url -> hostAvatarUrl
+- host_is_verified -> hostIsVerified
+- host_rating -> hostRating
+- host_events_hosted -> eventsHosted
+
+SEND TO BACKEND: Always snake_case
+
+
+================================================================================
+FRONTEND PR #3: Request DTOs & Error Handling (P1)
+================================================================================
+
+CONTEXT:
+You are creating request DTOs for API calls and improving error handling in Flutter.
+Currently, requests are created ad-hoc with Map<String, dynamic>, which is error-prone.
+Silent error handling hides server errors from users.
+
+CURRENT ISSUES:
+1. No typed request DTOs
+2. Silent error handling in BLoC
+3. Generic error messages ("Something went wrong")
+4. No retry mechanism
+5. No offline handling
+
+FILES TO CREATE/MODIFY:
+- lib/data/models/request/*.dart (CREATE NEW FILES)
+- lib/core/error/failures.dart (CREATE NEW)
+- lib/data/repositories/*_repository_impl.dart
+- lib/presentation/bloc/*_bloc.dart
+
+EXACT CHANGES REQUIRED:
+
+1. CREATE REQUEST DTOs (lib/data/models/request/):
+
+   CREATE: login_request.dart
+   class LoginRequest {
+     final String email;
+     final String password;
+
+     LoginRequest({required this.email, required this.password});
+
+     Map<String, dynamic> toJson() {
+       return {
+         'email': email,
+         'password': password,
+       };
+     }
+   }
+
+   CREATE: register_request.dart
+   class RegisterRequest {
+     final String email;
+     final String password;
+     final String name;
+
+     RegisterRequest({
+       required this.email,
+       required this.password,
+       required this.name,
+     });
+
+     Map<String, dynamic> toJson() {
+       return {
+         'email': email,
+         'password': password,
+         'name': name,
+       };
+     }
+   }
+
+   CREATE: create_event_request.dart
+   class CreateEventRequest {
+     final String title;
+     final String description;
+     final String category;
+     final DateTime startTime;
+     final DateTime endTime;
+     final String locationName;
+     final String locationAddress;
+     final double locationLat;
+     final double locationLng;
+     final String? venue;
+     final int maxAttendees;
+     final bool isFree;
+     final double? price;
+     final String privacy;
+     final List<String> imageUrls;
+     final String? requirements;
+
+     CreateEventRequest({
+       required this.title,
+       required this.description,
+       required this.category,
+       required this.startTime,
+       required this.endTime,
+       required this.locationName,
+       required this.locationAddress,
+       required this.locationLat,
+       required this.locationLng,
+       this.venue,
+       required this.maxAttendees,
+       required this.isFree,
+       this.price,
+       required this.privacy,
+       this.imageUrls = const [],
+       this.requirements,
+     });
+
+     Map<String, dynamic> toJson() {
+       return {
+         'title': title,
+         'description': description,
+         'category': category,
+         'start_time': startTime.toIso8601String(),
+         'end_time': endTime.toIso8601String(),
+         'location_name': locationName,
+         'location_address': locationAddress,
+         'location_lat': locationLat,
+         'location_lng': locationLng,
+         'venue': venue,
+         'max_attendees': maxAttendees,
+         'is_free': isFree,
+         'price': price,
+         'privacy': privacy,
+         'image_urls': imageUrls,
+         'requirements': requirements,
+       };
+     }
+   }
+
+   CREATE: create_post_request.dart
+   class CreatePostRequest {
+     final String content;
+     final String type;
+     final List<String> imageUrls;
+     final String? attachedEventId;
+     final String visibility;
+     final List<String> hashtags;
+     final List<String> mentions;
+
+     CreatePostRequest({
+       required this.content,
+       required this.type,
+       this.imageUrls = const [],
+       this.attachedEventId,
+       required this.visibility,
+       this.hashtags = const [],
+       this.mentions = const [],
+     });
+
+     Map<String, dynamic> toJson() {
+       return {
+         'content': content,
+         'type': type,
+         'image_urls': imageUrls,
+         'attached_event_id': attachedEventId,
+         'visibility': visibility,
+         'hashtags': hashtags,
+         'mentions': mentions,
+       };
+     }
+   }
+
+2. CREATE FAILURE TYPES (lib/core/error/failures.dart):
+
+   abstract class Failure {
+     final String message;
+     final int? statusCode;
+
+     Failure(this.message, {this.statusCode});
+   }
+
+   class ServerFailure extends Failure {
+     ServerFailure(String message, {int? statusCode})
+         : super(message, statusCode: statusCode);
+   }
+
+   class NetworkFailure extends Failure {
+     NetworkFailure() : super('No internet connection');
+   }
+
+   class ValidationFailure extends Failure {
+     final Map<String, String> errors;
+
+     ValidationFailure(this.errors)
+         : super('Validation failed');
+   }
+
+   class UnauthorizedFailure extends Failure {
+     UnauthorizedFailure() : super('Unauthorized', statusCode: 401);
+   }
+
+   class NotFoundFailure extends Failure {
+     NotFoundFailure(String message)
+         : super(message, statusCode: 404);
+   }
+
+   class ParseFailure extends Failure {
+     ParseFailure(String message) : super('Failed to parse response: $message');
+   }
+
+3. IMPROVE REPOSITORY ERROR HANDLING (lib/data/repositories/auth_repository_impl.dart):
+
+   import 'package:dartz/dartz.dart';
+   import '../../core/error/failures.dart';
+
+   @override
+   Future<Either<Failure, AuthModel>> login(LoginRequest request) async {
+     try {
+       final response = await _dio.post(
+         '/api/v1/auth/login',
+         data: request.toJson(),
+       );
+
+       if (response.statusCode == 200) {
+         try {
+           final auth = AuthModel.fromJson(response.data['data']);
+           return Right(auth);
+         } catch (e) {
+           return Left(ParseFailure(e.toString()));
+         }
+       } else {
+         return Left(ServerFailure(
+           response.data['message'] ?? 'Login failed',
+           statusCode: response.statusCode,
+         ));
+       }
+     } on DioException catch (e) {
+       if (e.type == DioExceptionType.connectionTimeout ||
+           e.type == DioExceptionType.receiveTimeout) {
+         return Left(NetworkFailure());
+       }
+
+       if (e.response?.statusCode == 401) {
+         return Left(UnauthorizedFailure());
+       }
+
+       if (e.response?.statusCode == 422) {
+         final errors = e.response?.data['errors'] as Map<String, dynamic>?;
+         if (errors != null) {
+           return Left(ValidationFailure(
+             errors.map((key, value) => MapEntry(key, value.toString())),
+           ));
+         }
+       }
+
+       return Left(ServerFailure(
+         e.response?.data['message'] ?? 'Server error',
+         statusCode: e.response?.statusCode,
+       ));
+     } catch (e) {
+       return Left(ServerFailure('Unexpected error: $e'));
+     }
+   }
+
+4. IMPROVE BLOC ERROR HANDLING (lib/presentation/bloc/auth/auth_bloc.dart):
+
+   on<LoginButtonPressed>((event, emit) async {
+     emit(AuthLoading());
+
+     final result = await _authRepository.login(event.request);
+
+     result.fold(
+       (failure) {
+         String message;
+         if (failure is NetworkFailure) {
+           message = 'No internet connection. Please check your network.';
+         } else if (failure is UnauthorizedFailure) {
+           message = 'Invalid email or password.';
+         } else if (failure is ValidationFailure) {
+           message = failure.errors.values.join('\n');
+         } else {
+           message = failure.message;
+         }
+
+         emit(AuthError(message));
+       },
+       (auth) {
+         emit(AuthAuthenticated(auth));
+       },
+     );
+   });
+
+5. ADD RETRY MECHANISM (lib/core/network/api_client.dart):
+
+   import 'package:dio/dio.dart';
+   import 'package:dio_retry/dio_retry.dart';
+
+   Dio createDio() {
+     final dio = Dio(BaseOptions(
+       baseUrl: 'http://your-api.com',
+       connectTimeout: Duration(seconds: 30),
+       receiveTimeout: Duration(seconds: 30),
+     ));
+
+     dio.interceptors.add(
+       RetryInterceptor(
+         dio: dio,
+         logPrint: print,
+         retries: 3,
+         retryDelays: const [
+           Duration(seconds: 1),
+           Duration(seconds: 2),
+           Duration(seconds: 3),
+         ],
+         retryableExtraStatuses: {408, 502, 503, 504},
+       ),
+     );
+
+     return dio;
+   }
+
+6. ADD OFFLINE HANDLING (lib/core/network/network_info.dart):
+
+   import 'package:connectivity_plus/connectivity_plus.dart';
+
+   abstract class NetworkInfo {
+     Future<bool> get isConnected;
+   }
+
+   class NetworkInfoImpl implements NetworkInfo {
+     final Connectivity connectivity;
+
+     NetworkInfoImpl(this.connectivity);
+
+     @override
+     Future<bool> get isConnected async {
+       final result = await connectivity.checkConnectivity();
+       return result != ConnectivityResult.none;
+     }
+   }
+
+   USE IN REPOSITORY:
+
+   @override
+   Future<Either<Failure, T>> someMethod() async {
+     if (!await _networkInfo.isConnected) {
+       return Left(NetworkFailure());
+     }
+
+     // proceed with API call
+   }
+
+VALIDATION RULES:
+- ALL request DTOs MUST use snake_case in toJson
+- ALL repository methods MUST return Either<Failure, T>
+- ALL DioExceptions MUST be caught and converted to Failure
+- ALL BLoC error states MUST show user-friendly messages
+- ALL API calls MUST check network connectivity first
+
+ACCEPTANCE CRITERIA:
+✓ All API calls use typed request DTOs
+✓ All errors show user-friendly messages
+✓ Network errors display "No internet connection"
+✓ Validation errors show field-specific messages
+✓ 401 errors prompt login
+✓ Retry mechanism handles transient errors
+✓ Offline state handled gracefully
+
+FIELD MAPPINGS FOR REQUESTS (ALWAYS snake_case):
+Frontend property -> Backend JSON field
+- startTime -> start_time
+- endTime -> end_time
+- locationName -> location_name
+- locationAddress -> location_address
+- locationLat -> location_lat
+- locationLng -> location_lng
+- maxAttendees -> max_attendees
+- isFree -> is_free
+- imageUrls -> image_urls
+- attachedEventId -> attached_event_id
+
+================================================================================
+END OF AI PROMPTS
+================================================================================
+
+SUMMARY OF FIELD MAPPINGS (CRITICAL - NO MISMATCHES):
+
+Backend sends (snake_case):
+- access_token, refresh_token, expires_in, token_type
+- avatar_url, is_verified, created_at, updated_at
+- start_time, end_time, image_urls, max_attendees
+- attendees_count, attendee_ids, pending_requests
+- location_name, location_address, location_lat, location_lng
+- host_id, host_name, host_avatar_url, is_free
+- attached_event_id, original_post_id
+- likes_count, comments_count, reposts_count, shares_count
+- is_liked_by_current_user, is_reposted_by_current_user, is_bookmarked
+
+Frontend receives as (camelCase internally):
+- accessToken, refreshToken, expiresIn, tokenType
+- avatarUrl, isVerified, createdAt, updatedAt
+- startTime, endTime, imageUrls, maxAttendees
+- attendeesCount, attendeeIds, pendingRequests
+- locationName, locationAddress, locationLat, locationLng
+- hostId, hostName, hostAvatarUrl, isFree
+- attachedEventId, originalPostId
+- likesCount, commentsCount, repostsCount, sharesCount
+- isLikedByCurrentUser, isRepostedByCurrentUser, isBookmarked
+
+RULE: Flutter models MUST check both snake_case and camelCase in fromJson
+RULE: Flutter models MUST send snake_case in toJson
+RULE: Backend MUST always use snake_case in JSON tags
+
+NO MISMATCHES ALLOWED!

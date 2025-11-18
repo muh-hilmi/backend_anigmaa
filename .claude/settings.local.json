@@ -40,7 +40,8 @@
       "Bash(docker exec:*)",
       "Bash(cp:*)",
       "Bash(docker-compose down:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(docker volume:*)"
     ],
     "deny": [],
     "ask": []

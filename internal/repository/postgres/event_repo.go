@@ -121,7 +121,7 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
 			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
 			u.name as host_name, u.avatar_url as host_avatar_url,
-			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') as attendees_count
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
 		WHERE 1=1
@@ -173,7 +173,7 @@ func (r *eventRepository) GetByHost(ctx context.Context, hostID uuid.UUID, limit
 			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
 			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
 			u.name as host_name, u.avatar_url as host_avatar_url,
-			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') as attendees_count
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
 		WHERE e.host_id = $1
@@ -193,7 +193,7 @@ func (r *eventRepository) GetJoinedEvents(ctx context.Context, userID uuid.UUID,
 			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
 			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
 			u.name as host_name, u.avatar_url as host_avatar_url,
-			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count,
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') as attendees_count,
 			true as is_user_attending
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id
@@ -215,7 +215,7 @@ func (r *eventRepository) GetNearby(ctx context.Context, lat, lng, radiusKm floa
 			e.max_attendees, e.price, e.is_free, e.status, e.privacy, e.requirements,
 			e.ticketing_enabled, e.tickets_sold, e.created_at, e.updated_at,
 			u.name as host_name, u.avatar_url as host_avatar_url,
-			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id) as attendees_count,
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') as attendees_count,
 			ST_Distance(e.location_geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) / 1000 as distance
 		FROM events e
 		INNER JOIN users u ON e.host_id = u.id

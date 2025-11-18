@@ -79,13 +79,13 @@ func (r *QnARepository) GetByEvent(ctx context.Context, eventID, userID uuid.UUI
 			u1.id as asked_by_id,
 			u1.name as asked_by_name,
 			u1.email as asked_by_email,
-			u1.avatar as asked_by_avatar,
+			u1.avatar_url as asked_by_avatar,
 			u1.created_at as asked_by_created_at,
 			-- Answered by user (nullable)
 			u2.id as answered_by_id,
 			u2.name as answered_by_name,
 			u2.email as answered_by_email,
-			u2.avatar as answered_by_avatar,
+			u2.avatar_url as answered_by_avatar,
 			u2.created_at as answered_by_created_at,
 			-- Check if current user upvoted
 			EXISTS(
@@ -93,8 +93,8 @@ func (r *QnARepository) GetByEvent(ctx context.Context, eventID, userID uuid.UUI
 				WHERE qna_id = q.id AND user_id = $2
 			) as is_upvoted
 		FROM event_qna q
-		INNER JOIN users u1 ON q.asked_by_id = u1.id
-		LEFT JOIN users u2 ON q.answered_by_id = u2.id
+		INNER JOIN users u1 ON q.user_id = u1.id
+		LEFT JOIN users u2 ON q.answered_by = u2.id
 		WHERE q.event_id = $1
 		ORDER BY q.upvotes DESC, q.asked_at DESC
 		LIMIT $3 OFFSET $4

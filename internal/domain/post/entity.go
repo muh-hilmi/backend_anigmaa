@@ -84,6 +84,7 @@ type EventSummary struct {
 	HostName        string    `json:"host_name"`
 	HostAvatarURL   *string   `json:"host_avatar_url,omitempty"`
 	MaxAttendees    int       `json:"max_attendees,omitempty"`
+	AttendeesCount  int       `json:"attendees_count"`
 	IsFree          bool      `json:"is_free"`
 	Price           *float64  `json:"price,omitempty"`
 	Status          string    `json:"status,omitempty"`
@@ -99,6 +100,11 @@ type PostImage struct {
 	Order    int       `json:"order" db:"order_index"`
 }
 
+// REVIEW: CRITICAL API CONTRACT MISMATCH - AttachedEventID is marked as required but frontend allows creating regular text posts without events.
+// This binding:"required" validation will cause ALL text-only posts from Flutter to fail with 400 Bad Request.
+// The field should be: AttachedEventID *uuid.UUID `json:"attached_event_id,omitempty" binding:"omitempty,uuid"`
+// Make it a pointer (*uuid.UUID) and omitempty to allow nil values for text posts that don't reference events.
+// Only TypeTextWithEvent posts should require this field - add business logic validation in the usecase layer instead.
 // CreatePostRequest represents post creation data
 type CreatePostRequest struct {
 	Content         string         `json:"content" binding:"required,max=5000"`

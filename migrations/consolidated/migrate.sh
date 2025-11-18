@@ -21,9 +21,16 @@ UP_MIGRATIONS=(
     "02_event_service.up.sql"
     "03_post_service.up.sql"
     "04_ticket_service.up.sql"
+    "05_community_service.up.sql"
+    "06_notification_service.up.sql"
+    "09_event_qna.sql"
+    "07_comprehensive_seed.sql"
+    "08_mailhilmi_user_seed.sql"
 )
 
 DOWN_MIGRATIONS=(
+    "06_notification_service.down.sql"
+    "05_community_service.down.sql"
     "04_ticket_service.down.sql"
     "03_post_service.down.sql"
     "02_event_service.down.sql"
