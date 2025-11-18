@@ -155,6 +155,7 @@ type EventFilter struct {
 	Lat       *float64       `form:"lat"`
 	Lng       *float64       `form:"lng"`
 	Radius    *float64       `form:"radius"` // in kilometers
+	Mode      string         `form:"mode"`   // Discovery mode: "trending", "for_you", "chill"
 	Limit     int            `form:"limit"`
 	Offset    int            `form:"offset"`
 }

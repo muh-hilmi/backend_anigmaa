@@ -148,12 +148,36 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 		argCount++
 	}
 
-	// Random weighted by engagement score (attendees count)
-	// Formula: (attendees_count + 1) ensures minimum weight of 1
-	// Multiply by random() to add randomness with engagement bias
-	query += ` ORDER BY (
-		(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
-	) * random() DESC`
+	// Apply different sorting based on discovery mode
+	switch filter.Mode {
+	case "trending":
+		// Trending: High engagement events (many attendees)
+		// Weight by attendees count squared for stronger bias toward popular events
+		query += ` ORDER BY (
+			POWER((SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1, 2)
+		) * random() DESC`
+
+	case "for_you":
+		// For You: Personalized mix - balanced engagement with some randomness
+		// Medium weight on attendees, more randomness for variety
+		query += ` ORDER BY (
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
+		) * random() DESC`
+
+	case "chill":
+		// Chill: Smaller, intimate events (fewer attendees)
+		// Inverse weight - prefer events with fewer attendees
+		// Formula: 100 - attendees gives higher score to smaller events
+		query += ` ORDER BY (
+			100.0 / ((SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1)
+		) * random() DESC`
+
+	default:
+		// Default: Same as "for_you" - balanced approach
+		query += ` ORDER BY (
+			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') + 1
+		) * random() DESC`
+	}
 
 	if filter.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argCount)
