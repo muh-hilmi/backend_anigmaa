@@ -8,6 +8,8 @@ import (
 	"github.com/anigmaa/backend/internal/domain/event"
 	"github.com/anigmaa/backend/internal/domain/ticket"
 	"github.com/anigmaa/backend/internal/domain/user"
+	"github.com/anigmaa/backend/internal/infrastructure/payment"
+	"github.com/anigmaa/backend/pkg/qrcode"
 	"github.com/anigmaa/backend/pkg/utils"
 	"github.com/google/uuid"
 )
@@ -27,22 +29,24 @@ var (
 
 // Usecase handles ticket business logic
 type Usecase struct {
-	ticketRepo ticket.Repository
-	eventRepo  event.Repository
-	userRepo   user.Repository
+	ticketRepo     ticket.Repository
+	eventRepo      event.Repository
+	userRepo       user.Repository
+	midtransClient *payment.MidtransClient
 }
 
 // NewUsecase creates a new ticket usecase
-func NewUsecase(ticketRepo ticket.Repository, eventRepo event.Repository, userRepo user.Repository) *Usecase {
+func NewUsecase(ticketRepo ticket.Repository, eventRepo event.Repository, userRepo user.Repository, midtransClient *payment.MidtransClient) *Usecase {
 	return &Usecase{
-		ticketRepo: ticketRepo,
-		eventRepo:  eventRepo,
-		userRepo:   userRepo,
+		ticketRepo:     ticketRepo,
+		eventRepo:      eventRepo,
+		userRepo:       userRepo,
+		midtransClient: midtransClient,
 	}
 }
 
 // PurchaseTicket purchases a ticket for an event
-func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ticket.PurchaseTicketRequest) (*ticket.Ticket, error) {
+func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ticket.PurchaseTicketRequest) (*ticket.PurchaseTicketResponse, error) {
 	// Get event
 	evt, err := uc.eventRepo.GetByID(ctx, req.EventID)
 	if err != nil {
@@ -61,7 +65,7 @@ func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ti
 	}
 
 	// Verify user exists
-	_, err = uc.userRepo.GetByID(ctx, userID)
+	usr, err := uc.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, errors.New("user not found")
 	}
@@ -78,6 +82,13 @@ func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ti
 		pricePaid = *evt.Price
 	}
 
+	// For paid events, ticket starts as pending until payment is confirmed
+	// For free events, ticket is active immediately
+	ticketStatus := ticket.StatusActive
+	if !evt.IsFree && pricePaid > 0 {
+		ticketStatus = ticket.StatusPending
+	}
+
 	// Create ticket
 	now := time.Now()
 	newTicket := &ticket.Ticket{
@@ -88,24 +99,62 @@ func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ti
 		PricePaid:      pricePaid,
 		PurchasedAt:    now,
 		IsCheckedIn:    false,
-		Status:         ticket.StatusActive,
+		Status:         ticketStatus,
 	}
 
 	if err := uc.ticketRepo.Create(ctx, newTicket); err != nil {
 		return nil, err
 	}
 
-	// For paid events, create a transaction record
+	// Prepare response
+	response := &ticket.PurchaseTicketResponse{
+		Ticket: newTicket,
+	}
+
+	// For paid events, create Midtrans payment
 	if !evt.IsFree && pricePaid > 0 {
+		// Generate order ID
+		orderID := payment.GenerateOrderID(newTicket.ID)
+
+		// Create Snap payment request
+		snapReq := &payment.SnapRequest{
+			TransactionDetails: payment.TransactionDetails{
+				OrderID:     orderID,
+				GrossAmount: pricePaid,
+			},
+			CustomerDetails: payment.CustomerDetails{
+				FirstName: usr.Name,
+				Email:     usr.Email,
+				Phone:     "", // Phone is optional, user entity doesn't have phone number
+			},
+			ItemDetails: []payment.ItemDetail{
+				{
+					ID:       evt.ID.String(),
+					Name:     evt.Title,
+					Price:    pricePaid,
+					Quantity: 1,
+				},
+			},
+		}
+
+		// Call Midtrans Snap API to create payment token
+		snapResp, err := uc.midtransClient.CreateSnapToken(ctx, snapReq)
+		if err != nil {
+			// If Midtrans API fails, delete the ticket and return error
+			_ = uc.ticketRepo.Delete(ctx, newTicket.ID)
+			return nil, errors.New("failed to create payment: " + err.Error())
+		}
+
+		// Create transaction record with pending status
 		transaction := &ticket.TicketTransaction{
 			ID:            uuid.New(),
 			TicketID:      newTicket.ID,
-			TransactionID: uuid.New().String(), // In production, this would be Midtrans transaction ID
+			TransactionID: orderID,
 			Amount:        pricePaid,
-			PaymentMethod: "midtrans", // Default, would be from req.PaymentMethod
-			Status:        ticket.TransactionSuccess,
+			PaymentMethod: "midtrans",
+			Status:        ticket.TransactionPending,
 			CreatedAt:     now,
-			CompletedAt:   &now,
+			CompletedAt:   nil, // Will be set by webhook when payment is confirmed
 		}
 
 		if req.PaymentMethod != nil {
@@ -113,28 +162,41 @@ func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ti
 		}
 
 		if err := uc.ticketRepo.CreateTransaction(ctx, transaction); err != nil {
-			// Log error but don't fail ticket creation
+			// If transaction creation fails, delete ticket and return error
+			_ = uc.ticketRepo.Delete(ctx, newTicket.ID)
+			return nil, errors.New("failed to create transaction: " + err.Error())
+		}
+
+		// Add payment info to response
+		response.PaymentToken = &snapResp.Token
+		response.PaymentURL = &snapResp.RedirectURL
+	} else {
+		// For free events, immediately join the event
+		attendee := &event.EventAttendee{
+			ID:       uuid.New(),
+			EventID:  req.EventID,
+			UserID:   userID,
+			JoinedAt: now,
+			Status:   event.AttendeeConfirmed,
+		}
+		if err := uc.eventRepo.Join(ctx, attendee); err != nil {
+			// Log error but don't fail
+		}
+
+		// Increment events attended for user stats
+		if err := uc.userRepo.IncrementEventsAttended(ctx, userID); err != nil {
+			// Log error but don't fail
 		}
 	}
 
-	// Join the event (create attendee record)
-	attendee := &event.EventAttendee{
-		ID:       uuid.New(),
-		EventID:  req.EventID,
-		UserID:   userID,
-		JoinedAt: now,
-		Status:   event.AttendeeConfirmed,
+	// Generate QR code for the ticket
+	qrCode, err := qrcode.GenerateTicketQR(newTicket.ID, newTicket.EventID, newTicket.UserID, newTicket.AttendanceCode)
+	if err == nil {
+		response.QRCode = &qrCode
 	}
-	if err := uc.eventRepo.Join(ctx, attendee); err != nil {
-		// Log error but don't fail
-	}
+	// If QR generation fails, continue without it (don't fail the request)
 
-	// Increment events attended for user stats
-	if err := uc.userRepo.IncrementEventsAttended(ctx, userID); err != nil {
-		// Log error but don't fail
-	}
-
-	return newTicket, nil
+	return response, nil
 }
 
 // GetTicketByID gets a ticket by ID
@@ -158,6 +220,13 @@ func (uc *Usecase) GetTicketWithDetails(ctx context.Context, ticketID, userID uu
 		return nil, ErrUnauthorized
 	}
 
+	// Generate QR code for the ticket
+	qrCode, err := qrcode.GenerateTicketQR(t.ID, t.EventID, t.UserID, t.AttendanceCode)
+	if err == nil {
+		t.QRCode = &qrCode
+	}
+	// If QR generation fails, continue without it (don't fail the request)
+
 	return t, nil
 }
 
@@ -170,7 +239,26 @@ func (uc *Usecase) GetUserTickets(ctx context.Context, userID uuid.UUID, limit, 
 		limit = 100
 	}
 
-	return uc.ticketRepo.GetByUser(ctx, userID, limit, offset)
+	tickets, err := uc.ticketRepo.GetByUser(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate QR codes for all tickets
+	for i := range tickets {
+		qrCode, err := qrcode.GenerateTicketQR(tickets[i].ID, tickets[i].EventID, tickets[i].UserID, tickets[i].AttendanceCode)
+		if err == nil {
+			tickets[i].QRCode = &qrCode
+		}
+		// If QR generation fails for a ticket, continue without it
+	}
+
+	return tickets, nil
+}
+
+// CountUserTickets counts total tickets for a user
+func (uc *Usecase) CountUserTickets(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.ticketRepo.CountUserTickets(ctx, userID)
 }
 
 // GetEventTickets gets all tickets for an event (host only)
@@ -193,7 +281,21 @@ func (uc *Usecase) GetEventTickets(ctx context.Context, eventID, requestingUserI
 		limit = 100
 	}
 
-	return uc.ticketRepo.GetByEvent(ctx, eventID, limit, offset)
+	tickets, err := uc.ticketRepo.GetByEvent(ctx, eventID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate QR codes for all tickets
+	for i := range tickets {
+		qrCode, err := qrcode.GenerateTicketQR(tickets[i].ID, tickets[i].EventID, tickets[i].UserID, tickets[i].AttendanceCode)
+		if err == nil {
+			tickets[i].QRCode = &qrCode
+		}
+		// If QR generation fails for a ticket, continue without it
+	}
+
+	return tickets, nil
 }
 
 // CheckIn checks in a ticket using attendance code
@@ -348,6 +450,28 @@ func (uc *Usecase) GetAttendanceCode(ctx context.Context, ticketID, userID uuid.
 	}
 
 	return t.AttendanceCode, nil
+}
+
+// GetTransaction gets a transaction by transaction ID
+func (uc *Usecase) GetTransaction(ctx context.Context, transactionID string, userID uuid.UUID) (*ticket.TicketTransaction, error) {
+	// Get transaction
+	transaction, err := uc.ticketRepo.GetTransaction(ctx, transactionID)
+	if err != nil {
+		return nil, errors.New("transaction not found")
+	}
+
+	// Get ticket to verify ownership
+	t, err := uc.ticketRepo.GetByID(ctx, transaction.TicketID)
+	if err != nil {
+		return nil, ErrTicketNotFound
+	}
+
+	// Verify user owns the ticket
+	if t.UserID != userID {
+		return nil, ErrUnauthorized
+	}
+
+	return transaction, nil
 }
 
 // ProcessPaymentCallback handles payment gateway callback

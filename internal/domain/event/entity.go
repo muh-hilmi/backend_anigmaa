@@ -9,14 +9,13 @@ import (
 // EventStatus represents the status of an event
 type EventStatus string
 
-// REVIEW: ENUM VALUE MISMATCH - Backend uses "completed" but frontend EventStatus enum might use "ended".
-// Check frontend enum definition and ensure consistency. When backend returns event with status="completed",
-// frontend must be able to parse it correctly. If frontend expects "ended", this will cause parsing failures.
-// Standardize on ONE value across both systems - recommend "completed" as it's more semantically accurate.
+// NOTE: Backend uses "completed" for finished events. Frontend MUST use "completed", NOT "ended".
+// This is the standardized value across the system. If frontend EventStatus enum uses "ended",
+// it must be changed to "completed" to match backend API responses.
 const (
 	StatusUpcoming  EventStatus = "upcoming"
 	StatusOngoing   EventStatus = "ongoing"
-	StatusCompleted EventStatus = "completed"
+	StatusCompleted EventStatus = "completed" // Use "completed", NOT "ended"
 	StatusCancelled EventStatus = "cancelled"
 )
 

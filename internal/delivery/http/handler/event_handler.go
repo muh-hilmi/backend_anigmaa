@@ -117,6 +117,17 @@ func (h *EventHandler) GetEvents(c *gin.Context) {
 		filter.Limit = 20
 	}
 
+	// Store original limit and offset for pagination
+	originalLimit := filter.Limit
+	originalOffset := filter.Offset
+
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountEvents(c.Request.Context(), &filter)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
 	// Call usecase
 	events, err := h.eventUsecase.ListEvents(c.Request.Context(), &filter)
 	if err != nil {
@@ -124,7 +135,9 @@ func (h *EventHandler) GetEvents(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Events retrieved successfully", events)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, originalLimit, originalOffset, len(events))
+	response.Paginated(c, http.StatusOK, "Events retrieved successfully", events, meta)
 }
 
 // GetEventByID godoc
@@ -455,15 +468,24 @@ func (h *EventHandler) GetNearbyEvents(c *gin.Context) {
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	events, err := h.eventUsecase.GetNearbyEvents(c.Request.Context(), lat, lng, radius, limit)
+	// Request limit+1 to check if there are more results
+	events, err := h.eventUsecase.GetNearbyEvents(c.Request.Context(), lat, lng, radius, limit+1)
 	if err != nil {
 		response.InternalError(c, "Failed to get nearby events", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Nearby events retrieved successfully", events)
+	// Check if there are more results
+	hasNext := len(events) > limit
+	if hasNext {
+		events = events[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Nearby events retrieved successfully", events, meta)
 }
 
 // GetMyEvents godoc
@@ -497,14 +519,72 @@ func (h *EventHandler) GetMyEvents(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	events, err := h.eventUsecase.GetEventsByHost(c.Request.Context(), userID, limit, offset)
+	// Request limit+1 to check if there are more results
+	events, err := h.eventUsecase.GetEventsByHost(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get events", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Events retrieved successfully", events)
+	// Check if there are more results
+	hasNext := len(events) > limit
+	if hasNext {
+		events = events[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Events retrieved successfully", events, meta)
+}
+
+// GetHostedEvents godoc
+// @Summary Get hosted events
+// @Description Get events hosted/created by the current user
+// @Tags events
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {object} response.Response{data=[]event.EventWithDetails}
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /events/hosted [get]
+func (h *EventHandler) GetHostedEvents(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse query parameters
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountHostedEvents(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get hosted events
+	events, err := h.eventUsecase.GetByHost(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "Failed to get hosted events", err.Error())
+		return
+	}
+
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Hosted events retrieved successfully", events, meta)
 }
 
 // GetJoinedEvents godoc
@@ -538,14 +618,23 @@ func (h *EventHandler) GetJoinedEvents(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountJoinedEvents(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get joined events
 	events, err := h.eventUsecase.GetJoinedEvents(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get joined events", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Joined events retrieved successfully", events)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Joined events retrieved successfully", events, meta)
 }
 
 // GetEventAttendees godoc
@@ -575,7 +664,14 @@ func (h *EventHandler) GetEventAttendees(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountAttendees(c.Request.Context(), eventID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get attendees
 	attendees, err := h.eventUsecase.GetAttendees(c.Request.Context(), eventID, limit, offset)
 	if err != nil {
 		if err == eventUsecase.ErrEventNotFound {
@@ -586,7 +682,9 @@ func (h *EventHandler) GetEventAttendees(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Attendees retrieved successfully", attendees)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(attendees))
+	response.Paginated(c, http.StatusOK, "Attendees retrieved successfully", attendees, meta)
 }
 
 // GetEventTickets godoc

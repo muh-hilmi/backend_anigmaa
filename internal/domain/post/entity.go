@@ -110,7 +110,7 @@ type CreatePostRequest struct {
 	Content         string         `json:"content" binding:"required,max=5000"`
 	Type            PostType       `json:"type" binding:"required"`
 	ImageURLs       []string       `json:"image_urls,omitempty" binding:"omitempty,max=4"`
-	AttachedEventID uuid.UUID      `json:"attached_event_id" binding:"required"`
+	AttachedEventID *uuid.UUID     `json:"attached_event_id,omitempty"` // Only required for TypeTextWithEvent
 	Visibility      PostVisibility `json:"visibility" binding:"required"`
 	Hashtags        []string       `json:"hashtags,omitempty"`
 	Mentions        []string       `json:"mentions,omitempty"`

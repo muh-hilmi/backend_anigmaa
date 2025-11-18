@@ -29,13 +29,13 @@ func NewTicketHandler(ticketUsecase *ticketUsecase.Usecase, validator *validator
 
 // PurchaseTicket godoc
 // @Summary Purchase ticket
-// @Description Purchase a ticket for an event
+// @Description Purchase a ticket for an event. For paid events, returns payment URL.
 // @Tags tickets
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param request body ticket.PurchaseTicketRequest true "Ticket purchase data"
-// @Success 201 {object} response.Response{data=ticket.Ticket}
+// @Success 201 {object} response.Response{data=ticket.PurchaseTicketResponse}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 404 {object} response.Response
@@ -71,7 +71,7 @@ func (h *TicketHandler) PurchaseTicket(c *gin.Context) {
 	}
 
 	// Call usecase
-	newTicket, err := h.ticketUsecase.PurchaseTicket(c.Request.Context(), userID, &req)
+	purchaseResponse, err := h.ticketUsecase.PurchaseTicket(c.Request.Context(), userID, &req)
 	if err != nil {
 		if err == ticketUsecase.ErrEventNotFound {
 			response.NotFound(c, "Event not found")
@@ -89,7 +89,13 @@ func (h *TicketHandler) PurchaseTicket(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "Ticket purchased successfully", newTicket)
+	// Different messages for free vs paid events
+	message := "Ticket purchased successfully"
+	if purchaseResponse.PaymentURL != nil {
+		message = "Ticket created. Please complete payment to activate."
+	}
+
+	response.Success(c, http.StatusCreated, message, purchaseResponse)
 }
 
 // GetMyTickets godoc
@@ -123,14 +129,23 @@ func (h *TicketHandler) GetMyTickets(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
+	// Get total count for pagination
+	total, err := h.ticketUsecase.CountUserTickets(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get user tickets
 	tickets, err := h.ticketUsecase.GetUserTickets(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get tickets", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Tickets retrieved successfully", tickets)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(tickets))
+	response.Paginated(c, http.StatusOK, "Tickets retrieved successfully", tickets, meta)
 }
 
 // GetTicketByID godoc
@@ -495,4 +510,62 @@ func (h *TicketHandler) VerifyTicket(c *gin.Context) {
 	response.Success(c, http.StatusOK, "Ticket verification completed", gin.H{
 		"is_valid": isValid,
 	})
+}
+
+// GetTransaction godoc
+// @Summary Get transaction details
+// @Description Get details of a specific ticket transaction
+// @Tags tickets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Transaction ID"
+// @Success 200 {object} response.Response{data=ticket.TicketTransaction}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /tickets/transactions/{id} [get]
+func (h *TicketHandler) GetTransaction(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse transaction ID from path
+	transactionID := c.Param("id")
+	if transactionID == "" {
+		response.BadRequest(c, "Transaction ID is required", "")
+		return
+	}
+
+	// Call usecase
+	transaction, err := h.ticketUsecase.GetTransaction(c.Request.Context(), transactionID, userID)
+	if err != nil {
+		if err == ticketUsecase.ErrTicketNotFound {
+			response.NotFound(c, "Transaction not found")
+			return
+		}
+		if err == ticketUsecase.ErrUnauthorized {
+			response.Forbidden(c, "You don't have access to this transaction")
+			return
+		}
+		if err.Error() == "transaction not found" {
+			response.NotFound(c, "Transaction not found")
+			return
+		}
+		response.InternalError(c, "Failed to get transaction", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Transaction retrieved successfully", transaction)
 }

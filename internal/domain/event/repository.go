@@ -21,6 +21,12 @@ type Repository interface {
 	GetJoinedEvents(ctx context.Context, userID uuid.UUID, limit, offset int) ([]EventWithDetails, error)
 	GetNearby(ctx context.Context, lat, lng, radiusKm float64, limit int) ([]EventWithDetails, error)
 
+	// Counting for pagination
+	CountEvents(ctx context.Context, filter *EventFilter) (int, error)
+	CountHostedEvents(ctx context.Context, hostID uuid.UUID) (int, error)
+	CountJoinedEvents(ctx context.Context, userID uuid.UUID) (int, error)
+	CountAttendees(ctx context.Context, eventID uuid.UUID) (int, error)
+
 	// Attendee management
 	Join(ctx context.Context, attendee *EventAttendee) error
 	Leave(ctx context.Context, eventID, userID uuid.UUID) error

@@ -20,6 +20,10 @@ type Repository interface {
 	GetFeed(ctx context.Context, userID uuid.UUID, limit, offset int) ([]PostWithDetails, error)
 	GetUserPosts(ctx context.Context, authorID, viewerID uuid.UUID, limit, offset int) ([]PostWithDetails, error)
 
+	// Counting for pagination
+	CountFeed(ctx context.Context, userID uuid.UUID) (int, error)
+	CountUserPosts(ctx context.Context, authorID uuid.UUID) (int, error)
+
 	// Image management
 	AddImages(ctx context.Context, images []PostImage) error
 	GetImages(ctx context.Context, postID uuid.UUID) ([]string, error)

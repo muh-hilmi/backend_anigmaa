@@ -105,6 +105,13 @@ func (h *ProfileHandler) GetProfilePosts(c *gin.Context) {
 		viewerID, _ = uuid.Parse(viewerIDStr)
 	}
 
+	// Get total count for pagination
+	total, err := h.postUsecase.CountUserPosts(c.Request.Context(), user.ID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
 	// Get user posts
 	posts, err := h.postUsecase.GetUserPosts(c.Request.Context(), user.ID, viewerID, limit, offset)
 	if err != nil {
@@ -112,7 +119,9 @@ func (h *ProfileHandler) GetProfilePosts(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Posts retrieved successfully", posts)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(posts))
+	response.Paginated(c, http.StatusOK, "Posts retrieved successfully", posts, meta)
 }
 
 // GetProfileEvents godoc
@@ -146,12 +155,21 @@ func (h *ProfileHandler) GetProfileEvents(c *gin.Context) {
 		return
 	}
 
-	// Get user events
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountHostedEvents(c.Request.Context(), user.ID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get events
 	events, err := h.eventUsecase.GetByHost(c.Request.Context(), user.ID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user events", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Events retrieved successfully", events)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Events retrieved successfully", events, meta)
 }

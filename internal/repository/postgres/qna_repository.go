@@ -291,3 +291,11 @@ func (r *QnARepository) GetUpvoteCount(ctx context.Context, qnaID uuid.UUID) (in
 	err := r.db.QueryRowContext(ctx, query, qnaID).Scan(&count)
 	return count, err
 }
+
+// CountEventQnA counts total questions for an event
+func (r *QnARepository) CountEventQnA(ctx context.Context, eventID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM event_qna WHERE event_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, eventID).Scan(&count)
+	return count, err
+}

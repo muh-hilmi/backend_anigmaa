@@ -21,6 +21,10 @@ type Repository interface {
 	GetByAttendanceCode(ctx context.Context, code string) (*Ticket, error)
 	GetUserTicketForEvent(ctx context.Context, userID, eventID uuid.UUID) (*Ticket, error)
 
+	// Counting for pagination
+	CountUserTickets(ctx context.Context, userID uuid.UUID) (int, error)
+	CountEventTickets(ctx context.Context, eventID uuid.UUID) (int, error)
+
 	// Check-in
 	CheckIn(ctx context.Context, ticketID uuid.UUID) error
 	GetCheckedInCount(ctx context.Context, eventID uuid.UUID) (int, error)

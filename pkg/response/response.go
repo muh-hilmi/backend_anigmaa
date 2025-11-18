@@ -20,19 +20,20 @@ type ErrorInfo struct {
 	Details string `json:"details,omitempty"`
 }
 
-// PaginationInfo contains pagination metadata
-type PaginationInfo struct {
-	Page       int `json:"page"`
-	Limit      int `json:"limit"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
+// PaginationMeta contains pagination metadata
+type PaginationMeta struct {
+	Total   int  `json:"total"`
+	Limit   int  `json:"limit"`
+	Offset  int  `json:"offset"`
+	HasNext bool `json:"hasNext"`
 }
 
 // PaginatedResponse represents a paginated API response
 type PaginatedResponse struct {
-	Success    bool            `json:"success"`
-	Data       interface{}     `json:"data"`
-	Pagination *PaginationInfo `json:"pagination"`
+	Success bool            `json:"success"`
+	Message string          `json:"message,omitempty"`
+	Data    interface{}     `json:"data"`
+	Meta    *PaginationMeta `json:"meta"`
 }
 
 // Success sends a successful response
@@ -57,12 +58,24 @@ func Error(c *gin.Context, statusCode int, message string, errorCode string, det
 }
 
 // Paginated sends a paginated response
-func Paginated(c *gin.Context, statusCode int, data interface{}, pagination *PaginationInfo) {
+func Paginated(c *gin.Context, statusCode int, message string, data interface{}, meta *PaginationMeta) {
 	c.JSON(statusCode, PaginatedResponse{
-		Success:    true,
-		Data:       data,
-		Pagination: pagination,
+		Success: true,
+		Message: message,
+		Data:    data,
+		Meta:    meta,
 	})
+}
+
+// NewPaginationMeta creates pagination metadata
+func NewPaginationMeta(total, limit, offset, currentCount int) *PaginationMeta {
+	hasNext := offset+currentCount < total
+	return &PaginationMeta{
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+		HasNext: hasNext,
+	}
 }
 
 // BadRequest sends a 400 Bad Request response

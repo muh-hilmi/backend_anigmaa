@@ -61,10 +61,14 @@ func (uc *Usecase) CreatePost(ctx context.Context, authorID uuid.UUID, req *post
 		return nil, errors.New("author user not found")
 	}
 
-	// Verify attached event exists (required)
-	_, err = uc.eventRepo.GetByID(ctx, req.AttachedEventID)
-	if err != nil {
-		return nil, ErrEventNotFound
+	// Verify attached event exists (only if provided)
+	var attachedEventID uuid.UUID
+	if req.AttachedEventID != nil && *req.AttachedEventID != uuid.Nil {
+		_, err = uc.eventRepo.GetByID(ctx, *req.AttachedEventID)
+		if err != nil {
+			return nil, ErrEventNotFound
+		}
+		attachedEventID = *req.AttachedEventID
 	}
 
 	// Create post
@@ -74,7 +78,7 @@ func (uc *Usecase) CreatePost(ctx context.Context, authorID uuid.UUID, req *post
 		AuthorID:        authorID,
 		Content:         req.Content,
 		Type:            req.Type,
-		AttachedEventID: req.AttachedEventID,
+		AttachedEventID: attachedEventID,
 		Visibility:      req.Visibility,
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -184,6 +188,11 @@ func (uc *Usecase) GetFeed(ctx context.Context, userID uuid.UUID, limit, offset 
 	return uc.postRepo.GetFeed(ctx, userID, limit, offset)
 }
 
+// CountFeed counts total posts in user's feed
+func (uc *Usecase) CountFeed(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.postRepo.CountFeed(ctx, userID)
+}
+
 // GetUserPosts gets posts by a specific user
 func (uc *Usecase) GetUserPosts(ctx context.Context, authorID, viewerID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
 	// Verify author exists
@@ -200,6 +209,11 @@ func (uc *Usecase) GetUserPosts(ctx context.Context, authorID, viewerID uuid.UUI
 	}
 
 	return uc.postRepo.GetUserPosts(ctx, authorID, viewerID, limit, offset)
+}
+
+// CountUserPosts counts total posts by a user
+func (uc *Usecase) CountUserPosts(ctx context.Context, authorID uuid.UUID) (int, error) {
+	return uc.postRepo.CountUserPosts(ctx, authorID)
 }
 
 // ListPosts lists posts with filters
@@ -413,6 +427,11 @@ func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, of
 	}
 
 	return posts, nil
+}
+
+// CountBookmarks counts total bookmarks for a user
+func (uc *Usecase) CountBookmarks(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.interactionRepo.CountBookmarks(ctx, userID)
 }
 
 // SharePost tracks a post share

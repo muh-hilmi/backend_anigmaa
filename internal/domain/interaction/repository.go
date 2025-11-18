@@ -29,4 +29,7 @@ type Repository interface {
 	// Share tracking
 	Share(ctx context.Context, share *Share) error
 	GetShareCount(ctx context.Context, postID uuid.UUID) (int, error)
+
+	// Counting for pagination
+	CountBookmarks(ctx context.Context, userID uuid.UUID) (int, error)
 }

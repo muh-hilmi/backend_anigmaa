@@ -59,7 +59,14 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
+	// Get total count for pagination
+	total, err := h.postUsecase.CountFeed(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Call usecase to get posts
 	posts, err := h.postUsecase.GetFeed(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get feed", err.Error())
@@ -72,7 +79,9 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 		postResponses[i] = p.ToResponse()
 	}
 
-	response.Success(c, http.StatusOK, "Feed retrieved successfully", postResponses)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(posts))
+	response.Paginated(c, http.StatusOK, "Feed retrieved successfully", postResponses, meta)
 }
 
 // CreatePost godoc
@@ -113,6 +122,12 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	// Validate request
 	if err := h.validator.Validate(&req); err != nil {
 		response.BadRequest(c, "Validation failed", err.Error())
+		return
+	}
+
+	// Custom validation: attached_event_id is required for text_with_event posts
+	if req.Type == post.TypeTextWithEvent && (req.AttachedEventID == nil || *req.AttachedEventID == uuid.Nil) {
+		response.BadRequest(c, "Validation failed", "attached_event_id is required for text_with_event posts")
 		return
 	}
 
@@ -1003,7 +1018,14 @@ func (h *PostHandler) GetBookmarks(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
+	// Get total count for pagination
+	total, err := h.postUsecase.CountBookmarks(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get bookmarked posts
 	posts, err := h.postUsecase.GetBookmarks(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get bookmarks", err.Error())
@@ -1021,5 +1043,7 @@ func (h *PostHandler) GetBookmarks(c *gin.Context) {
 		postResponses = []post.PostResponse{}
 	}
 
-	response.Success(c, http.StatusOK, "Bookmarks retrieved successfully", postResponses)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(posts))
+	response.Paginated(c, http.StatusOK, "Bookmarks retrieved successfully", postResponses, meta)
 }

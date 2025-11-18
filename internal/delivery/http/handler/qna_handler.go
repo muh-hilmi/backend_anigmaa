@@ -59,7 +59,14 @@ func (h *QnAHandler) GetEventQnA(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
+	// Get total count for pagination
+	total, err := h.qnaUsecase.CountEventQnA(c.Request.Context(), eventID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get Q&A list
 	qnaList, err := h.qnaUsecase.GetEventQnA(c.Request.Context(), eventID, userID, limit, offset)
 	if err != nil {
 		if err == qnaUsecase.ErrEventNotFound {
@@ -75,7 +82,9 @@ func (h *QnAHandler) GetEventQnA(c *gin.Context) {
 		qnaList = []qna.QnAWithDetails{}
 	}
 
-	response.Success(c, http.StatusOK, "Q&A retrieved successfully", qnaList)
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(qnaList))
+	response.Paginated(c, http.StatusOK, "Q&A retrieved successfully", qnaList, meta)
 }
 
 // AskQuestion godoc

@@ -2,16 +2,20 @@ package user
 
 import (
 	"context"
-	"errors"
-	"time"
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
-	"io"
-	"net/http"
+	"errors"
 	"fmt"
-	"strings"
+	"io"
+	mathrand "math/rand"
+	"net/http"
 	"regexp"
-	"math/rand"
+	"strings"
+	"time"
 
+	"github.com/anigmaa/backend/internal/domain/auth"
 	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/anigmaa/backend/pkg/jwt"
 	"github.com/anigmaa/backend/pkg/password"
@@ -27,19 +31,23 @@ var (
 	ErrAlreadyFollowing       = errors.New("already following this user")
 	ErrNotFollowing           = errors.New("not following this user")
 	ErrCannotFollowSelf       = errors.New("cannot follow yourself")
+	ErrInvalidToken           = errors.New("invalid or expired token")
+	ErrTokenAlreadyUsed       = errors.New("token has already been used")
 )
 
 // Usecase handles user business logic
 type Usecase struct {
 	userRepo       user.Repository
+	authTokenRepo  auth.Repository
 	jwtManager     *jwt.JWTManager
 	googleClientID string
 }
 
 // NewUsecase creates a new user usecase
-func NewUsecase(userRepo user.Repository, jwtManager *jwt.JWTManager, googleClientID string) *Usecase {
+func NewUsecase(userRepo user.Repository, authTokenRepo auth.Repository, jwtManager *jwt.JWTManager, googleClientID string) *Usecase {
 	return &Usecase{
 		userRepo:       userRepo,
+		authTokenRepo:  authTokenRepo,
 		jwtManager:     jwtManager,
 		googleClientID: googleClientID,
 	}
@@ -95,7 +103,7 @@ func (uc *Usecase) generateUsername(ctx context.Context, name string, providedUs
 
 		// Username taken, try with random number
 		counter++
-		username = fmt.Sprintf("%s%d", baseUsername, rand.Intn(10000))
+		username = fmt.Sprintf("%s%d", baseUsername, mathrand.Intn(10000))
 	}
 
 	// If still not found, use UUID suffix
@@ -410,6 +418,21 @@ func (uc *Usecase) IsFollowing(ctx context.Context, followerID, followingID uuid
 	return uc.userRepo.IsFollowing(ctx, followerID, followingID)
 }
 
+// CountFollowers counts total followers for a user
+func (uc *Usecase) CountFollowers(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.userRepo.CountFollowers(ctx, userID)
+}
+
+// CountFollowing counts total users a user is following
+func (uc *Usecase) CountFollowing(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.userRepo.CountFollowing(ctx, userID)
+}
+
+// CountSearchResults counts total users matching search query
+func (uc *Usecase) CountSearchResults(ctx context.Context, query string) (int, error) {
+	return uc.userRepo.CountSearchResults(ctx, query)
+}
+
 // SearchUsers searches for users by query
 func (uc *Usecase) SearchUsers(ctx context.Context, query string, limit, offset int) ([]user.User, error) {
 	if limit <= 0 {
@@ -441,6 +464,32 @@ func (uc *Usecase) VerifyEmail(ctx context.Context, userID uuid.UUID) error {
 	}
 
 	existingUser.IsEmailVerified = true
+	existingUser.UpdatedAt = time.Now()
+
+	return uc.userRepo.Update(ctx, existingUser)
+}
+
+// ChangePassword changes a user's password
+func (uc *Usecase) ChangePassword(ctx context.Context, userID uuid.UUID, req *user.ChangePasswordRequest) error {
+	// Get existing user
+	existingUser, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	// Verify current password
+	if err := password.Verify(existingUser.PasswordHash, req.CurrentPassword); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	// Hash new password
+	hashedPassword, err := password.Hash(req.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	// Update password
+	existingUser.PasswordHash = hashedPassword
 	existingUser.UpdatedAt = time.Now()
 
 	return uc.userRepo.Update(ctx, existingUser)
@@ -584,4 +633,178 @@ func (uc *Usecase) verifyGoogleToken(idToken string) (*GoogleTokenInfo, error) {
 	}
 
 	return &tokenInfo, nil
+}
+
+// generateToken generates a secure random token
+func generateToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// SendVerificationEmail sends an email verification token
+func (uc *Usecase) SendVerificationEmail(ctx context.Context, userID uuid.UUID) (string, error) {
+	// Get user
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", ErrUserNotFound
+	}
+
+	// Delete any existing verification tokens for this user
+	if err := uc.authTokenRepo.DeleteTokensByUser(ctx, userID, auth.TokenTypeEmailVerification); err != nil {
+		// Log error but don't fail
+	}
+
+	// Generate new token
+	tokenValue, err := generateToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	// Create token record (expires in 24 hours)
+	token := &auth.AuthToken{
+		ID:        uuid.New(),
+		UserID:    userID,
+		Token:     tokenValue,
+		TokenType: auth.TokenTypeEmailVerification,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	if err := uc.authTokenRepo.CreateToken(ctx, token); err != nil {
+		return "", fmt.Errorf("failed to create token: %w", err)
+	}
+
+	// TODO: Send actual email with token
+	// For now, return the token (in production, this would be sent via email service)
+	_ = user // Use the user variable to avoid compile error
+
+	return tokenValue, nil
+}
+
+// VerifyEmailWithToken verifies a user's email using a token
+func (uc *Usecase) VerifyEmailWithToken(ctx context.Context, tokenValue string) error {
+	// Get token
+	token, err := uc.authTokenRepo.GetTokenByValue(ctx, tokenValue)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrInvalidToken
+		}
+		return fmt.Errorf("failed to get token: %w", err)
+	}
+
+	// Check if token is valid
+	if !token.IsValid() {
+		if token.IsUsed() {
+			return ErrTokenAlreadyUsed
+		}
+		return ErrInvalidToken
+	}
+
+	// Get user
+	user, err := uc.userRepo.GetByID(ctx, token.UserID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	// Mark user as verified
+	user.IsEmailVerified = true
+	user.UpdatedAt = time.Now()
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	// Mark token as used
+	if err := uc.authTokenRepo.MarkTokenAsUsed(ctx, tokenValue); err != nil {
+		// Log error but don't fail since verification succeeded
+	}
+
+	return nil
+}
+
+// SendPasswordResetEmail sends a password reset token
+func (uc *Usecase) SendPasswordResetEmail(ctx context.Context, email string) (string, error) {
+	// Get user by email
+	user, err := uc.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return "", ErrUserNotFound
+	}
+
+	// Delete any existing password reset tokens for this user
+	if err := uc.authTokenRepo.DeleteTokensByUser(ctx, user.ID, auth.TokenTypePasswordReset); err != nil {
+		// Log error but don't fail
+	}
+
+	// Generate new token
+	tokenValue, err := generateToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	// Create token record (expires in 1 hour)
+	token := &auth.AuthToken{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		Token:     tokenValue,
+		TokenType: auth.TokenTypePasswordReset,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+
+	if err := uc.authTokenRepo.CreateToken(ctx, token); err != nil {
+		return "", fmt.Errorf("failed to create token: %w", err)
+	}
+
+	// TODO: Send actual email with token
+	// For now, return the token (in production, this would be sent via email service)
+
+	return tokenValue, nil
+}
+
+// ResetPasswordWithToken resets a user's password using a token
+func (uc *Usecase) ResetPasswordWithToken(ctx context.Context, tokenValue string, newPassword string) error {
+	// Get token
+	token, err := uc.authTokenRepo.GetTokenByValue(ctx, tokenValue)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrInvalidToken
+		}
+		return fmt.Errorf("failed to get token: %w", err)
+	}
+
+	// Check if token is valid
+	if !token.IsValid() {
+		if token.IsUsed() {
+			return ErrTokenAlreadyUsed
+		}
+		return ErrInvalidToken
+	}
+
+	// Get user
+	user, err := uc.userRepo.GetByID(ctx, token.UserID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	// Hash new password
+	hashedPassword, err := password.Hash(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update user password
+	user.PasswordHash = hashedPassword
+	user.UpdatedAt = time.Now()
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	// Mark token as used
+	if err := uc.authTokenRepo.MarkTokenAsUsed(ctx, tokenValue); err != nil {
+		// Log error but don't fail since password reset succeeded
+	}
+
+	return nil
 }

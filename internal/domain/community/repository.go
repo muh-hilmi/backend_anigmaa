@@ -29,4 +29,9 @@ type Repository interface {
 
 	// Community details
 	GetWithDetails(ctx context.Context, communityID, userID uuid.UUID) (*CommunityWithDetails, error)
+
+	// Counting for pagination
+	CountCommunities(ctx context.Context, filter *CommunityFilter) (int, error)
+	CountCommunityMembers(ctx context.Context, communityID uuid.UUID) (int, error)
+	CountUserCommunities(ctx context.Context, userID uuid.UUID) (int, error)
 }
