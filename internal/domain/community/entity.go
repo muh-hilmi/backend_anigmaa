@@ -53,10 +53,10 @@ type CommunityMember struct {
 // CommunityWithDetails includes additional community information
 type CommunityWithDetails struct {
 	Community
-	CreatorName      string  `json:"creator_name"`
-	CreatorAvatarURL *string `json:"creator_avatar_url"`
-	IsJoinedByUser   bool    `json:"is_joined_by_current_user"`
-	UserRole         *Role   `json:"user_role,omitempty"`
+	CreatorName      string  `json:"creator_name" db:"creator_name"`
+	CreatorAvatarURL *string `json:"creator_avatar_url" db:"creator_avatar_url"`
+	IsJoinedByUser   bool    `json:"is_joined_by_current_user" db:"is_joined_by_user"`
+	UserRole         *Role   `json:"user_role,omitempty" db:"user_role"`
 }
 
 // CreateCommunityRequest represents community creation data
