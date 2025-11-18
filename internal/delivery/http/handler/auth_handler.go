@@ -187,14 +187,23 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement password reset logic
-	// 1. Verify user exists
-	// 2. Generate reset token
-	// 3. Send reset email
-	// 4. Store reset token with expiration
+	// Call usecase to generate and send reset token
+	token, err := h.userUsecase.SendPasswordResetEmail(c.Request.Context(), req.Email)
+	if err != nil {
+		if err == userUsecase.ErrUserNotFound {
+			// For security, don't reveal if email exists or not
+			response.Success(c, http.StatusOK, "If the email exists, a password reset link has been sent", nil)
+			return
+		}
+		response.InternalError(c, "Failed to send password reset email", err.Error())
+		return
+	}
 
-	// For now, return success (in production, implement actual logic)
-	response.Success(c, http.StatusOK, "Password reset email sent", nil)
+	// In production, the token would be sent via email
+	// For development/testing, return the token in the response
+	response.Success(c, http.StatusOK, "Password reset email sent", gin.H{
+		"token": token, // Remove this in production
+	})
 }
 
 // ResetPassword godoc
@@ -221,14 +230,20 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement password reset logic
-	// 1. Verify reset token
-	// 2. Check token expiration
-	// 3. Hash new password
-	// 4. Update user password
-	// 5. Invalidate reset token
+	// Call usecase to reset password with token
+	if err := h.userUsecase.ResetPasswordWithToken(c.Request.Context(), req.Token, req.NewPassword); err != nil {
+		if err == userUsecase.ErrInvalidToken {
+			response.Unauthorized(c, "Invalid or expired reset token")
+			return
+		}
+		if err == userUsecase.ErrTokenAlreadyUsed {
+			response.BadRequest(c, "Reset token has already been used", err.Error())
+			return
+		}
+		response.InternalError(c, "Failed to reset password", err.Error())
+		return
+	}
 
-	// For now, return success (in production, implement actual logic)
 	response.Success(c, http.StatusOK, "Password reset successful", nil)
 }
 
@@ -255,20 +270,16 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement email verification logic
-	// 1. Verify token
-	// 2. Extract user ID from token
-	// 3. Mark email as verified
-
-	// For now, parse token as user ID (in production, implement proper token verification)
-	userID, err := uuid.Parse(req.Token)
-	if err != nil {
-		response.BadRequest(c, "Invalid verification token", err.Error())
-		return
-	}
-
-	// Call usecase
-	if err := h.userUsecase.VerifyEmail(c.Request.Context(), userID); err != nil {
+	// Call usecase to verify email with token
+	if err := h.userUsecase.VerifyEmailWithToken(c.Request.Context(), req.Token); err != nil {
+		if err == userUsecase.ErrInvalidToken {
+			response.Unauthorized(c, "Invalid or expired verification token")
+			return
+		}
+		if err == userUsecase.ErrTokenAlreadyUsed {
+			response.BadRequest(c, "Verification token has already been used", err.Error())
+			return
+		}
 		if err == userUsecase.ErrUserNotFound {
 			response.NotFound(c, "User not found")
 			return
@@ -278,6 +289,49 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	response.Success(c, http.StatusOK, "Email verified successfully", nil)
+}
+
+// ResendVerificationEmail godoc
+// @Summary Resend verification email
+// @Description Resend email verification token to the current user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/resend-verification [post]
+func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Call usecase to generate and send verification token
+	token, err := h.userUsecase.SendVerificationEmail(c.Request.Context(), userID)
+	if err != nil {
+		if err == userUsecase.ErrUserNotFound {
+			response.NotFound(c, "User not found")
+			return
+		}
+		response.InternalError(c, "Failed to send verification email", err.Error())
+		return
+	}
+
+	// In production, the token would be sent via email
+	// For development/testing, return the token in the response
+	response.Success(c, http.StatusOK, "Verification email sent", gin.H{
+		"token": token, // Remove this in production
+	})
 }
 
 // ChangePassword godoc

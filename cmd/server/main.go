@@ -106,9 +106,10 @@ func main() {
 	interactionRepo := postgres.NewInteractionRepository(db)
 	qnaRepo := postgres.NewQnARepository(db)
 	communityRepo := postgres.NewCommunityRepository(db)
+	authTokenRepo := postgres.NewAuthTokenRepository(db)
 
 	// Initialize use cases
-	userUsecase := user.NewUsecase(userRepo, jwtManager, cfg.Google.ClientID)
+	userUsecase := user.NewUsecase(userRepo, authTokenRepo, jwtManager, cfg.Google.ClientID)
 	eventUsecase := event.NewUsecase(eventRepo, userRepo)
 	postUsecase := post.NewUsecase(postRepo, commentRepo, interactionRepo, eventRepo, userRepo)
 	ticketUsecase := ticket.NewUsecase(ticketRepo, eventRepo, userRepo)
@@ -201,6 +202,7 @@ func main() {
 			authProtected.POST("/logout", authHandler.Logout)
 			authProtected.POST("/refresh", authHandler.RefreshToken)
 			authProtected.POST("/change-password", authHandler.ChangePassword)
+			authProtected.POST("/resend-verification", authHandler.ResendVerificationEmail)
 		}
 
 		// User routes
