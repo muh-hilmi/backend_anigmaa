@@ -279,6 +279,26 @@ func (uc *Usecase) GetNearbyEvents(ctx context.Context, lat, lng, radiusKm float
 	return uc.eventRepo.GetNearby(ctx, lat, lng, radiusKm, limit)
 }
 
+// CountEvents counts total events matching filter
+func (uc *Usecase) CountEvents(ctx context.Context, filter *event.EventFilter) (int, error) {
+	return uc.eventRepo.CountEvents(ctx, filter)
+}
+
+// CountHostedEvents counts total events by a host
+func (uc *Usecase) CountHostedEvents(ctx context.Context, hostID uuid.UUID) (int, error) {
+	return uc.eventRepo.CountHostedEvents(ctx, hostID)
+}
+
+// CountJoinedEvents counts total events a user has joined
+func (uc *Usecase) CountJoinedEvents(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.eventRepo.CountJoinedEvents(ctx, userID)
+}
+
+// CountAttendees counts total attendees for an event
+func (uc *Usecase) CountAttendees(ctx context.Context, eventID uuid.UUID) (int, error) {
+	return uc.eventRepo.CountAttendees(ctx, eventID)
+}
+
 // JoinEvent joins an event
 func (uc *Usecase) JoinEvent(ctx context.Context, eventID, userID uuid.UUID) error {
 	// Get event

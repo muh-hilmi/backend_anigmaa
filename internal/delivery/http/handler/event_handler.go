@@ -121,8 +121,12 @@ func (h *EventHandler) GetEvents(c *gin.Context) {
 	originalLimit := filter.Limit
 	originalOffset := filter.Offset
 
-	// Request limit+1 to check if there are more results
-	filter.Limit = filter.Limit + 1
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountEvents(c.Request.Context(), &filter)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
 
 	// Call usecase
 	events, err := h.eventUsecase.ListEvents(c.Request.Context(), &filter)
@@ -131,14 +135,8 @@ func (h *EventHandler) GetEvents(c *gin.Context) {
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(events) > originalLimit
-	if hasNext {
-		events = events[:originalLimit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(originalOffset+len(events), originalLimit, originalOffset, len(events))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, originalLimit, originalOffset, len(events))
 	response.Paginated(c, http.StatusOK, "Events retrieved successfully", events, meta)
 }
 
@@ -570,21 +568,22 @@ func (h *EventHandler) GetHostedEvents(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Request limit+1 to check if there are more results
-	events, err := h.eventUsecase.GetByHost(c.Request.Context(), userID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountHostedEvents(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get hosted events
+	events, err := h.eventUsecase.GetByHost(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get hosted events", err.Error())
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(events) > limit
-	if hasNext {
-		events = events[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(events))
 	response.Paginated(c, http.StatusOK, "Hosted events retrieved successfully", events, meta)
 }
 
@@ -619,21 +618,22 @@ func (h *EventHandler) GetJoinedEvents(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Request limit+1 to check if there are more results
-	events, err := h.eventUsecase.GetJoinedEvents(c.Request.Context(), userID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountJoinedEvents(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get joined events
+	events, err := h.eventUsecase.GetJoinedEvents(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get joined events", err.Error())
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(events) > limit
-	if hasNext {
-		events = events[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(events))
 	response.Paginated(c, http.StatusOK, "Joined events retrieved successfully", events, meta)
 }
 
@@ -664,8 +664,15 @@ func (h *EventHandler) GetEventAttendees(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Request limit+1 to check if there are more results
-	attendees, err := h.eventUsecase.GetAttendees(c.Request.Context(), eventID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.eventUsecase.CountAttendees(c.Request.Context(), eventID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get attendees
+	attendees, err := h.eventUsecase.GetAttendees(c.Request.Context(), eventID, limit, offset)
 	if err != nil {
 		if err == eventUsecase.ErrEventNotFound {
 			response.NotFound(c, "Event not found")
@@ -675,14 +682,8 @@ func (h *EventHandler) GetEventAttendees(c *gin.Context) {
 		return
 	}
 
-	// Check if there are more results
-	hasNext := len(attendees) > limit
-	if hasNext {
-		attendees = attendees[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(attendees), limit, offset, len(attendees))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(attendees))
 	response.Paginated(c, http.StatusOK, "Attendees retrieved successfully", attendees, meta)
 }
 

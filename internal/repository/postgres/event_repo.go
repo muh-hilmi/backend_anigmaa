@@ -363,3 +363,72 @@ func (r *eventRepository) GetByHostID(ctx context.Context, hostID uuid.UUID) ([]
 
 	return events, nil
 }
+
+// CountEvents counts total events matching filter
+func (r *eventRepository) CountEvents(ctx context.Context, filter *event.EventFilter) (int, error) {
+	query := `SELECT COUNT(*) FROM events WHERE 1=1`
+	args := []interface{}{}
+	argCount := 1
+
+	if filter.Category != nil {
+		query += fmt.Sprintf(" AND category = $%d", argCount)
+		args = append(args, *filter.Category)
+		argCount++
+	}
+	if filter.Status != nil {
+		query += fmt.Sprintf(" AND status = $%d", argCount)
+		args = append(args, *filter.Status)
+		argCount++
+	}
+	if filter.IsFree != nil {
+		query += fmt.Sprintf(" AND is_free = $%d", argCount)
+		args = append(args, *filter.IsFree)
+		argCount++
+	}
+	if filter.StartDate != nil {
+		query += fmt.Sprintf(" AND start_time >= $%d", argCount)
+		args = append(args, *filter.StartDate)
+		argCount++
+	}
+	if filter.EndDate != nil {
+		query += fmt.Sprintf(" AND end_time <= $%d", argCount)
+		args = append(args, *filter.EndDate)
+		argCount++
+	}
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
+	return count, err
+}
+
+// CountHostedEvents counts total events by a host
+func (r *eventRepository) CountHostedEvents(ctx context.Context, hostID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM events WHERE host_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, hostID).Scan(&count)
+	return count, err
+}
+
+// CountJoinedEvents counts total events a user has joined
+func (r *eventRepository) CountJoinedEvents(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM event_attendees ea
+		WHERE ea.user_id = $1 AND ea.status = 'confirmed'
+	`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	return count, err
+}
+
+// CountAttendees counts total attendees for an event
+func (r *eventRepository) CountAttendees(ctx context.Context, eventID uuid.UUID) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM event_attendees
+		WHERE event_id = $1 AND status = 'confirmed'
+	`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, eventID).Scan(&count)
+	return count, err
+}
