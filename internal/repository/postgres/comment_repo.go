@@ -17,6 +17,12 @@ func NewCommentRepository(db *sqlx.DB) comment.Repository {
 	return &commentRepository{db: db}
 }
 
+// REVIEW: CRITICAL PRODUCTION BLOCKER - Comment creation is completely non-functional
+// The social feed allows users to comment on posts via UI, but this method returns nil without persisting data.
+// Users see their comment temporarily in UI (optimistic update) but it disappears on refresh because database has no record.
+// This creates severe user confusion - they think they posted a comment but it's gone.
+// MUST IMPLEMENT: INSERT INTO comments (id, post_id, author_id, content, parent_comment_id, created_at, updated_at) VALUES (...)
+// Also must call post_repo.IncrementComments() to update the denormalized counter on posts table.
 // Create creates a new comment
 func (r *commentRepository) Create(ctx context.Context, c *comment.Comment) error {
 	// TODO: implement
@@ -35,12 +41,16 @@ func (r *commentRepository) GetWithDetails(ctx context.Context, commentID, userI
 	return nil, nil
 }
 
+// REVIEW: Comment editing not implemented - users cannot fix typos or update their comments after posting
 // Update updates a comment
 func (r *commentRepository) Update(ctx context.Context, c *comment.Comment) error {
 	// TODO: implement
 	return nil
 }
 
+// REVIEW: CRITICAL - Comment deletion returns success but doesn't delete anything from database
+// This creates orphaned comments that cannot be removed, violating user expectations and potentially GDPR
+// MUST IMPLEMENT: DELETE FROM comments WHERE id = $1, then call post_repo.DecrementComments()
 // Delete deletes a comment
 func (r *commentRepository) Delete(ctx context.Context, commentID uuid.UUID) error {
 	// TODO: implement

@@ -17,12 +17,20 @@ func NewInteractionRepository(db *sqlx.DB) interaction.Repository {
 	return &interactionRepository{db: db}
 }
 
+// REVIEW: CRITICAL PRODUCTION BLOCKER - Like system completely broken
+// Frontend shows heart icon fill animation when user likes a post, but NO DATA is saved to database.
+// Like counter increments client-side but on refresh shows wrong count because database has no like records.
+// This breaks core engagement metrics and user expectations. Users think they liked content but system has no record.
+// MUST IMPLEMENT: INSERT INTO likes (id, user_id, likeable_type, likeable_id, created_at) VALUES (...)
+// Must handle unique constraint violation (user already liked) and return appropriate error.
+// Must call post_repo.IncrementLikes() or comment_repo.IncrementLikes() after successful insert.
 // Like creates a new like
 func (r *interactionRepository) Like(ctx context.Context, like *interaction.Like) error {
 	// TODO: implement
 	return nil
 }
 
+// REVIEW: Unlike also stubbed - users cannot remove likes once given. One-way interaction only.
 // Unlike removes a like
 func (r *interactionRepository) Unlike(ctx context.Context, userID uuid.UUID, likeableType interaction.LikeableType, likeableID uuid.UUID) error {
 	// TODO: implement
@@ -41,6 +49,8 @@ func (r *interactionRepository) GetLikes(ctx context.Context, likeableType inter
 	return nil, nil
 }
 
+// REVIEW: CRITICAL - Repost feature (similar to retweet) doesn't work. Users can click repost button but nothing persists.
+// This is a key viral distribution mechanism - without it, content cannot spread organically through the network.
 // Repost creates a new repost
 func (r *interactionRepository) Repost(ctx context.Context, repost *interaction.Repost) error {
 	// TODO: implement

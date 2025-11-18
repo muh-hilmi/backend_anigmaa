@@ -17,12 +17,18 @@ func NewTicketRepository(db *sqlx.DB) ticket.Repository {
 	return &ticketRepository{db: db}
 }
 
+// REVIEW: CRITICAL REVENUE BLOCKER - Ticket creation is stubbed, meaning the ENTIRE MONETIZATION SYSTEM is broken
+// When user attempts to purchase ticket via Midtrans payment gateway, payment succeeds but NO TICKET is created in database.
+// User pays money but receives no ticket, no QR code, cannot check-in to event - this is catastrophic for business model.
+// MUST IMPLEMENT: INSERT INTO tickets (id, event_id, user_id, status, price, attendance_code, created_at) VALUES (...)
+// Must be ATOMIC with transaction creation - if either fails, both must rollback to prevent money loss or orphaned tickets.
 // Create creates a new ticket
 func (r *ticketRepository) Create(ctx context.Context, t *ticket.Ticket) error {
 	// TODO: implement
 	return nil
 }
 
+// REVIEW: Cannot retrieve tickets by ID - ticket detail screen will always show "not found" even for valid purchases
 // GetByID gets a ticket by ID
 func (r *ticketRepository) GetByID(ctx context.Context, ticketID uuid.UUID) (*ticket.Ticket, error) {
 	// TODO: implement
