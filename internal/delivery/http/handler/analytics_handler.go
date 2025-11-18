@@ -124,8 +124,8 @@ func (h *AnalyticsHandler) GetEventTransactions(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	transactions, err := h.analyticsUsecase.GetEventTransactions(c.Request.Context(), eventID, hostID, status, limit, offset)
+	// Request limit+1 to check if there are more results
+	transactions, err := h.analyticsUsecase.GetEventTransactions(c.Request.Context(), eventID, hostID, status, limit+1, offset)
 	if err != nil {
 		if err == analyticsUsecase.ErrEventNotFound {
 			response.NotFound(c, "Event not found")
@@ -139,7 +139,15 @@ func (h *AnalyticsHandler) GetEventTransactions(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Event transactions retrieved successfully", transactions)
+	// Check if there are more results
+	hasNext := len(transactions) > limit
+	if hasNext {
+		transactions = transactions[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(transactions), limit, offset, len(transactions))
+	response.Paginated(c, http.StatusOK, "Event transactions retrieved successfully", transactions, meta)
 }
 
 // GetHostRevenueSummary godoc
@@ -247,12 +255,20 @@ func (h *AnalyticsHandler) GetHostEventsList(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	events, err := h.analyticsUsecase.GetHostEventsList(c.Request.Context(), hostID, status, limit, offset)
+	// Request limit+1 to check if there are more results
+	events, err := h.analyticsUsecase.GetHostEventsList(c.Request.Context(), hostID, status, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get host events list", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Host events retrieved successfully", events)
+	// Check if there are more results
+	hasNext := len(events) > limit
+	if hasNext {
+		events = events[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Host events retrieved successfully", events, meta)
 }

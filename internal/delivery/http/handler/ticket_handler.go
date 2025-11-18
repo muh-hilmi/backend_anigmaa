@@ -123,14 +123,22 @@ func (h *TicketHandler) GetMyTickets(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	tickets, err := h.ticketUsecase.GetUserTickets(c.Request.Context(), userID, limit, offset)
+	// Call usecase - request limit+1 to check if there are more
+	tickets, err := h.ticketUsecase.GetUserTickets(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get tickets", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Tickets retrieved successfully", tickets)
+	// Check if there are more results
+	hasNext := len(tickets) > limit
+	if hasNext {
+		tickets = tickets[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(tickets), limit, offset, len(tickets))
+	response.Paginated(c, http.StatusOK, "Tickets retrieved successfully", tickets, meta)
 }
 
 // GetTicketByID godoc

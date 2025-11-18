@@ -59,11 +59,17 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	posts, err := h.postUsecase.GetFeed(c.Request.Context(), userID, limit, offset)
+	// Call usecase - request limit+1 to check if there are more
+	posts, err := h.postUsecase.GetFeed(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get feed", err.Error())
 		return
+	}
+
+	// Check if there are more results
+	hasNext := len(posts) > limit
+	if hasNext {
+		posts = posts[:limit] // Trim to requested limit
 	}
 
 	// Transform to Flutter-compatible response format
@@ -72,7 +78,9 @@ func (h *PostHandler) GetFeed(c *gin.Context) {
 		postResponses[i] = p.ToResponse()
 	}
 
-	response.Success(c, http.StatusOK, "Feed retrieved successfully", postResponses)
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(posts), limit, offset, len(posts))
+	response.Paginated(c, http.StatusOK, "Feed retrieved successfully", postResponses, meta)
 }
 
 // CreatePost godoc
@@ -1009,11 +1017,17 @@ func (h *PostHandler) GetBookmarks(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	posts, err := h.postUsecase.GetBookmarks(c.Request.Context(), userID, limit, offset)
+	// Call usecase - request limit+1 to check if there are more
+	posts, err := h.postUsecase.GetBookmarks(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get bookmarks", err.Error())
 		return
+	}
+
+	// Check if there are more results
+	hasNext := len(posts) > limit
+	if hasNext {
+		posts = posts[:limit] // Trim to requested limit
 	}
 
 	// Transform to Flutter-compatible response format
@@ -1027,5 +1041,7 @@ func (h *PostHandler) GetBookmarks(c *gin.Context) {
 		postResponses = []post.PostResponse{}
 	}
 
-	response.Success(c, http.StatusOK, "Bookmarks retrieved successfully", postResponses)
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(posts), limit, offset, len(posts))
+	response.Paginated(c, http.StatusOK, "Bookmarks retrieved successfully", postResponses, meta)
 }

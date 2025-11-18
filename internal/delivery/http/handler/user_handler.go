@@ -187,8 +187,8 @@ func (h *UserHandler) GetFollowers(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	followers, err := h.userUsecase.GetFollowers(c.Request.Context(), userID, limit, offset)
+	// Call usecase - request limit+1 to check if there are more
+	followers, err := h.userUsecase.GetFollowers(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		if err == userUsecase.ErrUserNotFound {
 			response.NotFound(c, "User not found")
@@ -198,7 +198,15 @@ func (h *UserHandler) GetFollowers(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Followers retrieved successfully", followers)
+	// Check if there are more results
+	hasNext := len(followers) > limit
+	if hasNext {
+		followers = followers[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(followers), limit, offset, len(followers))
+	response.Paginated(c, http.StatusOK, "Followers retrieved successfully", followers, meta)
 }
 
 // GetFollowing godoc
@@ -229,8 +237,8 @@ func (h *UserHandler) GetFollowing(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	following, err := h.userUsecase.GetFollowing(c.Request.Context(), userID, limit, offset)
+	// Call usecase - request limit+1 to check if there are more
+	following, err := h.userUsecase.GetFollowing(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		if err == userUsecase.ErrUserNotFound {
 			response.NotFound(c, "User not found")
@@ -240,7 +248,15 @@ func (h *UserHandler) GetFollowing(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Following retrieved successfully", following)
+	// Check if there are more results
+	hasNext := len(following) > limit
+	if hasNext {
+		following = following[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(following), limit, offset, len(following))
+	response.Paginated(c, http.StatusOK, "Following retrieved successfully", following, meta)
 }
 
 // FollowUser godoc
@@ -469,8 +485,8 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	users, err := h.userUsecase.SearchUsers(c.Request.Context(), query, limit, offset)
+	// Call usecase - request limit+1 to check if there are more
+	users, err := h.userUsecase.SearchUsers(c.Request.Context(), query, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to search users", err.Error())
 		return
@@ -481,5 +497,13 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		users = []user.User{}
 	}
 
-	response.Success(c, http.StatusOK, "Users found successfully", users)
+	// Check if there are more results
+	hasNext := len(users) > limit
+	if hasNext {
+		users = users[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(users), limit, offset, len(users))
+	response.Paginated(c, http.StatusOK, "Users found successfully", users, meta)
 }

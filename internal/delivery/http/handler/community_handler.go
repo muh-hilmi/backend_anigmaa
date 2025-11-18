@@ -50,7 +50,7 @@ func (h *CommunityHandler) GetCommunities(c *gin.Context) {
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
 	filter := &community.CommunityFilter{
-		Limit:  limit,
+		Limit:  limit + 1, // Request limit+1 to check if there are more results
 		Offset: offset,
 	}
 
@@ -74,7 +74,15 @@ func (h *CommunityHandler) GetCommunities(c *gin.Context) {
 		communities = []community.CommunityWithDetails{}
 	}
 
-	response.Success(c, http.StatusOK, "Communities retrieved successfully", communities)
+	// Check if there are more results
+	hasNext := len(communities) > limit
+	if hasNext {
+		communities = communities[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(communities), limit, offset, len(communities))
+	response.Paginated(c, http.StatusOK, "Communities retrieved successfully", communities, meta)
 }
 
 // GetCommunityByID godoc
@@ -427,8 +435,8 @@ func (h *CommunityHandler) GetCommunityMembers(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	members, err := h.communityUsecase.GetCommunityMembers(c.Request.Context(), communityID, limit, offset)
+	// Request limit+1 to check if there are more results
+	members, err := h.communityUsecase.GetCommunityMembers(c.Request.Context(), communityID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get community members", err.Error())
 		return
@@ -439,7 +447,15 @@ func (h *CommunityHandler) GetCommunityMembers(c *gin.Context) {
 		members = []community.CommunityMember{}
 	}
 
-	response.Success(c, http.StatusOK, "Community members retrieved successfully", members)
+	// Check if there are more results
+	hasNext := len(members) > limit
+	if hasNext {
+		members = members[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(members), limit, offset, len(members))
+	response.Paginated(c, http.StatusOK, "Community members retrieved successfully", members, meta)
 }
 
 // GetUserCommunities godoc
@@ -473,8 +489,8 @@ func (h *CommunityHandler) GetUserCommunities(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Call usecase
-	communities, err := h.communityUsecase.GetUserCommunities(c.Request.Context(), userID, limit, offset)
+	// Request limit+1 to check if there are more results
+	communities, err := h.communityUsecase.GetUserCommunities(c.Request.Context(), userID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user communities", err.Error())
 		return
@@ -485,5 +501,13 @@ func (h *CommunityHandler) GetUserCommunities(c *gin.Context) {
 		communities = []community.CommunityWithDetails{}
 	}
 
-	response.Success(c, http.StatusOK, "User communities retrieved successfully", communities)
+	// Check if there are more results
+	hasNext := len(communities) > limit
+	if hasNext {
+		communities = communities[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(communities), limit, offset, len(communities))
+	response.Paginated(c, http.StatusOK, "User communities retrieved successfully", communities, meta)
 }

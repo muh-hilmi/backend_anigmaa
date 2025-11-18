@@ -105,14 +105,22 @@ func (h *ProfileHandler) GetProfilePosts(c *gin.Context) {
 		viewerID, _ = uuid.Parse(viewerIDStr)
 	}
 
-	// Get user posts
-	posts, err := h.postUsecase.GetUserPosts(c.Request.Context(), user.ID, viewerID, limit, offset)
+	// Request limit+1 to check if there are more results
+	posts, err := h.postUsecase.GetUserPosts(c.Request.Context(), user.ID, viewerID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user posts", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Posts retrieved successfully", posts)
+	// Check if there are more results
+	hasNext := len(posts) > limit
+	if hasNext {
+		posts = posts[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(posts), limit, offset, len(posts))
+	response.Paginated(c, http.StatusOK, "Posts retrieved successfully", posts, meta)
 }
 
 // GetProfileEvents godoc
@@ -146,12 +154,20 @@ func (h *ProfileHandler) GetProfileEvents(c *gin.Context) {
 		return
 	}
 
-	// Get user events
-	events, err := h.eventUsecase.GetByHost(c.Request.Context(), user.ID, limit, offset)
+	// Request limit+1 to check if there are more results
+	events, err := h.eventUsecase.GetByHost(c.Request.Context(), user.ID, limit+1, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user events", err.Error())
 		return
 	}
 
-	response.Success(c, http.StatusOK, "Events retrieved successfully", events)
+	// Check if there are more results
+	hasNext := len(events) > limit
+	if hasNext {
+		events = events[:limit] // Trim to requested limit
+	}
+
+	// Create pagination metadata
+	meta := response.NewPaginationMeta(offset+len(events), limit, offset, len(events))
+	response.Paginated(c, http.StatusOK, "Events retrieved successfully", events, meta)
 }
