@@ -7,7 +7,6 @@
 -- Perfect for debugging and testing event discovery features
 -- ============================================================================
 
-BEGIN;
 
 -- ============================================================================
 -- FUTURE EVENTS (65 events across 12 months)
@@ -525,7 +524,6 @@ INSERT INTO event_images (event_id, image_url, order_index) VALUES
 ('f0000010-0000-0000-0000-000000000010', 'https://images.unsplash.com/photo-1559136555-9303baea8ebd', 0)
 ON CONFLICT DO NOTHING;
 
-COMMIT;
 
 -- ============================================================================
 -- FUTURE EVENTS SEED SUMMARY

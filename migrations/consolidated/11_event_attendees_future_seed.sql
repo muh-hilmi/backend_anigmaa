@@ -13,7 +13,6 @@
 -- - Small (3-8 attendees): Niche events, expensive courses
 -- ============================================================================
 
-BEGIN;
 
 -- ============================================================================
 -- NOVEMBER 2025 EVENTS ATTENDEES
@@ -242,7 +241,6 @@ UPDATE events e SET attendees_count = (
 )
 WHERE e.id LIKE 'f%';
 
-COMMIT;
 
 -- ============================================================================
 -- EVENT ATTENDEES SEED SUMMARY

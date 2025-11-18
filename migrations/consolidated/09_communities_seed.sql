@@ -8,8 +8,6 @@
 -- - Community events association
 -- ============================================================================
 
-BEGIN;
-
 -- ============================================================================
 -- 1. COMMUNITIES (12 diverse communities)
 -- ============================================================================
@@ -192,8 +190,6 @@ ON CONFLICT (community_id, user_id) DO NOTHING;
 UPDATE communities c SET members_count = (
     SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id
 );
-
-COMMIT;
 
 -- ============================================================================
 -- COMMUNITIES SEED SUMMARY
