@@ -229,6 +229,21 @@ func (uc *Usecase) GetUserCommunities(ctx context.Context, userID uuid.UUID, lim
 	return uc.communityRepo.GetUserCommunities(ctx, userID, limit, offset)
 }
 
+// CountCommunities counts total communities matching filter
+func (uc *Usecase) CountCommunities(ctx context.Context, filter *community.CommunityFilter) (int, error) {
+	return uc.communityRepo.CountCommunities(ctx, filter)
+}
+
+// CountCommunityMembers counts total members in a community
+func (uc *Usecase) CountCommunityMembers(ctx context.Context, communityID uuid.UUID) (int, error) {
+	return uc.communityRepo.CountCommunityMembers(ctx, communityID)
+}
+
+// CountUserCommunities counts total communities a user has joined
+func (uc *Usecase) CountUserCommunities(ctx context.Context, userID uuid.UUID) (int, error) {
+	return uc.communityRepo.CountUserCommunities(ctx, userID)
+}
+
 // generateSlug generates a URL-friendly slug from a name
 func generateSlug(name string) string {
 	slug := strings.ToLower(name)

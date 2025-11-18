@@ -50,7 +50,7 @@ func (h *CommunityHandler) GetCommunities(c *gin.Context) {
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
 	filter := &community.CommunityFilter{
-		Limit:  limit + 1, // Request limit+1 to check if there are more results
+		Limit:  limit,
 		Offset: offset,
 	}
 
@@ -60,6 +60,13 @@ func (h *CommunityHandler) GetCommunities(c *gin.Context) {
 	if privacy != "" {
 		p := community.Privacy(privacy)
 		filter.Privacy = &p
+	}
+
+	// Get total count for pagination
+	total, err := h.communityUsecase.CountCommunities(c.Request.Context(), filter)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
 	}
 
 	// Call usecase
@@ -74,14 +81,8 @@ func (h *CommunityHandler) GetCommunities(c *gin.Context) {
 		communities = []community.CommunityWithDetails{}
 	}
 
-	// Check if there are more results
-	hasNext := len(communities) > limit
-	if hasNext {
-		communities = communities[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(communities), limit, offset, len(communities))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(communities))
 	response.Paginated(c, http.StatusOK, "Communities retrieved successfully", communities, meta)
 }
 
@@ -435,8 +436,15 @@ func (h *CommunityHandler) GetCommunityMembers(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Request limit+1 to check if there are more results
-	members, err := h.communityUsecase.GetCommunityMembers(c.Request.Context(), communityID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.communityUsecase.CountCommunityMembers(c.Request.Context(), communityID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get members
+	members, err := h.communityUsecase.GetCommunityMembers(c.Request.Context(), communityID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get community members", err.Error())
 		return
@@ -447,14 +455,8 @@ func (h *CommunityHandler) GetCommunityMembers(c *gin.Context) {
 		members = []community.CommunityMember{}
 	}
 
-	// Check if there are more results
-	hasNext := len(members) > limit
-	if hasNext {
-		members = members[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(members), limit, offset, len(members))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(members))
 	response.Paginated(c, http.StatusOK, "Community members retrieved successfully", members, meta)
 }
 
@@ -489,8 +491,15 @@ func (h *CommunityHandler) GetUserCommunities(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Request limit+1 to check if there are more results
-	communities, err := h.communityUsecase.GetUserCommunities(c.Request.Context(), userID, limit+1, offset)
+	// Get total count for pagination
+	total, err := h.communityUsecase.CountUserCommunities(c.Request.Context(), userID)
+	if err != nil {
+		// If count fails, default to 0 but continue
+		total = 0
+	}
+
+	// Get communities
+	communities, err := h.communityUsecase.GetUserCommunities(c.Request.Context(), userID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "Failed to get user communities", err.Error())
 		return
@@ -501,13 +510,7 @@ func (h *CommunityHandler) GetUserCommunities(c *gin.Context) {
 		communities = []community.CommunityWithDetails{}
 	}
 
-	// Check if there are more results
-	hasNext := len(communities) > limit
-	if hasNext {
-		communities = communities[:limit] // Trim to requested limit
-	}
-
-	// Create pagination metadata
-	meta := response.NewPaginationMeta(offset+len(communities), limit, offset, len(communities))
+	// Create pagination metadata with correct total
+	meta := response.NewPaginationMeta(total, limit, offset, len(communities))
 	response.Paginated(c, http.StatusOK, "User communities retrieved successfully", communities, meta)
 }

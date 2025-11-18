@@ -269,3 +269,44 @@ func generateSlug(name string) string {
 	}
 	return string(result)
 }
+
+// CountCommunities counts total communities matching filter
+func (r *communityRepository) CountCommunities(ctx context.Context, filter *community.CommunityFilter) (int, error) {
+	query := `SELECT COUNT(*) FROM communities c WHERE 1=1`
+	args := []interface{}{}
+	argIdx := 1
+
+	// Apply filters
+	if filter.Search != nil && *filter.Search != "" {
+		query += fmt.Sprintf(" AND (c.name ILIKE $%d OR c.description ILIKE $%d)", argIdx, argIdx)
+		searchTerm := "%" + *filter.Search + "%"
+		args = append(args, searchTerm)
+		argIdx++
+	}
+
+	if filter.Privacy != nil {
+		query += fmt.Sprintf(" AND c.privacy = $%d", argIdx)
+		args = append(args, *filter.Privacy)
+		argIdx++
+	}
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
+	return count, err
+}
+
+// CountCommunityMembers counts total members in a community
+func (r *communityRepository) CountCommunityMembers(ctx context.Context, communityID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM community_members WHERE community_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, communityID).Scan(&count)
+	return count, err
+}
+
+// CountUserCommunities counts total communities a user has joined
+func (r *communityRepository) CountUserCommunities(ctx context.Context, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM community_members WHERE user_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	return count, err
+}
