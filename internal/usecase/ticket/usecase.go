@@ -9,6 +9,7 @@ import (
 	"github.com/anigmaa/backend/internal/domain/ticket"
 	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/anigmaa/backend/internal/infrastructure/payment"
+	"github.com/anigmaa/backend/pkg/qrcode"
 	"github.com/anigmaa/backend/pkg/utils"
 	"github.com/google/uuid"
 )
@@ -188,6 +189,13 @@ func (uc *Usecase) PurchaseTicket(ctx context.Context, userID uuid.UUID, req *ti
 		}
 	}
 
+	// Generate QR code for the ticket
+	qrCode, err := qrcode.GenerateTicketQR(newTicket.ID, newTicket.EventID, newTicket.UserID, newTicket.AttendanceCode)
+	if err == nil {
+		response.QRCode = &qrCode
+	}
+	// If QR generation fails, continue without it (don't fail the request)
+
 	return response, nil
 }
 
@@ -212,6 +220,13 @@ func (uc *Usecase) GetTicketWithDetails(ctx context.Context, ticketID, userID uu
 		return nil, ErrUnauthorized
 	}
 
+	// Generate QR code for the ticket
+	qrCode, err := qrcode.GenerateTicketQR(t.ID, t.EventID, t.UserID, t.AttendanceCode)
+	if err == nil {
+		t.QRCode = &qrCode
+	}
+	// If QR generation fails, continue without it (don't fail the request)
+
 	return t, nil
 }
 
@@ -224,7 +239,21 @@ func (uc *Usecase) GetUserTickets(ctx context.Context, userID uuid.UUID, limit, 
 		limit = 100
 	}
 
-	return uc.ticketRepo.GetByUser(ctx, userID, limit, offset)
+	tickets, err := uc.ticketRepo.GetByUser(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate QR codes for all tickets
+	for i := range tickets {
+		qrCode, err := qrcode.GenerateTicketQR(tickets[i].ID, tickets[i].EventID, tickets[i].UserID, tickets[i].AttendanceCode)
+		if err == nil {
+			tickets[i].QRCode = &qrCode
+		}
+		// If QR generation fails for a ticket, continue without it
+	}
+
+	return tickets, nil
 }
 
 // GetEventTickets gets all tickets for an event (host only)
@@ -247,7 +276,21 @@ func (uc *Usecase) GetEventTickets(ctx context.Context, eventID, requestingUserI
 		limit = 100
 	}
 
-	return uc.ticketRepo.GetByEvent(ctx, eventID, limit, offset)
+	tickets, err := uc.ticketRepo.GetByEvent(ctx, eventID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate QR codes for all tickets
+	for i := range tickets {
+		qrCode, err := qrcode.GenerateTicketQR(tickets[i].ID, tickets[i].EventID, tickets[i].UserID, tickets[i].AttendanceCode)
+		if err == nil {
+			tickets[i].QRCode = &qrCode
+		}
+		// If QR generation fails for a ticket, continue without it
+	}
+
+	return tickets, nil
 }
 
 // CheckIn checks in a ticket using attendance code
