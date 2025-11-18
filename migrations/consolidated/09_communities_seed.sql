@@ -189,7 +189,7 @@ ON CONFLICT (community_id, user_id) DO NOTHING;
 -- 3. COMMUNITY STATS (auto-calculated)
 -- ============================================================================
 
-UPDATE communities c SET member_count = (
+UPDATE communities c SET members_count = (
     SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id
 );
 
