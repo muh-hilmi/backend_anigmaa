@@ -1,6 +1,7 @@
 package user
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -75,15 +76,47 @@ type UserProfile struct {
 	Privacy  UserPrivacy  `json:"privacy"`
 }
 
+// FlexibleTime can unmarshal from multiple date/datetime formats
+type FlexibleTime struct {
+	time.Time
+}
+
+// UnmarshalJSON implements custom unmarshaling for FlexibleTime
+func (ft *FlexibleTime) UnmarshalJSON(data []byte) error {
+	// Remove quotes
+	str := string(data)
+	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
+		str = str[1 : len(str)-1]
+	}
+
+	// Try multiple formats
+	formats := []string{
+		time.RFC3339,                  // 2006-01-02T15:04:05Z07:00
+		"2006-01-02T15:04:05.999",     // Flutter format without timezone
+		"2006-01-02T15:04:05",         // ISO 8601 without timezone
+		"2006-01-02",                  // Date only
+		"2006-01-02 15:04:05",         // Common datetime format
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, str); err == nil {
+			ft.Time = t
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unable to parse time: %s", str)
+}
+
 // UpdateProfileRequest represents profile update data
 type UpdateProfileRequest struct {
-	Bio         *string    `json:"bio,omitempty" binding:"omitempty,max=150"`
-	AvatarURL   *string    `json:"avatar_url,omitempty"`
-	Phone       *string    `json:"phone,omitempty" binding:"omitempty,numeric,min=10,max=15"`
-	DateOfBirth *time.Time `json:"date_of_birth,omitempty"`
-	Gender      *string    `json:"gender,omitempty" binding:"omitempty,oneof='Laki-laki' 'Perempuan' 'Lainnya' 'Prefer not to say'"`
-	Location    *string    `json:"location,omitempty"`
-	Interests   []string   `json:"interests,omitempty" binding:"omitempty,max=20,dive,min=1"`
+	Bio         *string       `json:"bio,omitempty" binding:"omitempty,max=150"`
+	AvatarURL   *string       `json:"avatar_url,omitempty"`
+	Phone       *string       `json:"phone,omitempty" binding:"omitempty,numeric,min=10,max=15"`
+	DateOfBirth *FlexibleTime `json:"date_of_birth,omitempty"`
+	Gender      *string       `json:"gender,omitempty" binding:"omitempty,oneof='Laki-laki' 'Perempuan' 'Lainnya' 'Prefer not to say'"`
+	Location    *string       `json:"location,omitempty"`
+	Interests   []string      `json:"interests,omitempty" binding:"omitempty,max=20,dive,min=1"`
 }
 
 // UpdateSettingsRequest represents settings update data

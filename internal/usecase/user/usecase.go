@@ -105,6 +105,27 @@ func (uc *Usecase) GetByID(ctx context.Context, userID uuid.UUID) (*user.User, e
 	return existingUser, nil
 }
 
+// GetByUsername gets a user by username (which is actually user ID as string for Google Auth)
+// This method exists for backwards compatibility with profile endpoints
+func (uc *Usecase) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	// Try to parse as UUID (user ID)
+	userID, err := uuid.Parse(username)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+	return uc.GetByID(ctx, userID)
+}
+
+// GetProfileByUsername gets a user profile by username (which is actually user ID as string)
+func (uc *Usecase) GetProfileByUsername(ctx context.Context, username string) (*user.UserProfile, error) {
+	// Try to parse as UUID (user ID)
+	userID, err := uuid.Parse(username)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+	return uc.GetProfile(ctx, userID)
+}
+
 // UpdateProfile updates a user's profile
 func (uc *Usecase) UpdateProfile(ctx context.Context, userID uuid.UUID, req *user.UpdateProfileRequest) (*user.User, error) {
 	// Get existing user
@@ -134,7 +155,9 @@ func (uc *Usecase) UpdateProfile(ctx context.Context, userID uuid.UUID, req *use
 		if age < 13 {
 			return nil, fmt.Errorf("user must be at least 13 years old")
 		}
-		existingUser.DateOfBirth = req.DateOfBirth
+		// Convert FlexibleTime to *time.Time
+		t := req.DateOfBirth.Time
+		existingUser.DateOfBirth = &t
 	}
 	if req.Gender != nil {
 		existingUser.Gender = req.Gender

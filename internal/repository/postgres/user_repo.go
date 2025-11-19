@@ -9,6 +9,7 @@ import (
 	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type userRepository struct {
@@ -39,7 +40,7 @@ func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 
 	return r.db.QueryRowContext(ctx, query,
 		u.ID, u.Email, u.Name, u.Bio, u.AvatarURL,
-		u.Phone, u.DateOfBirth, u.Gender, u.Location, u.Interests,
+		u.Phone, u.DateOfBirth, u.Gender, u.Location, pq.Array(u.Interests),
 		u.CreatedAt, u.UpdatedAt, u.IsVerified, u.IsEmailVerified,
 	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
@@ -47,9 +48,18 @@ func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 // GetByID gets a user by ID
 func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
 	var u user.User
-	query := `SELECT * FROM users WHERE id = $1`
+	query := `
+		SELECT id, email, name, bio, avatar_url,
+		       phone, date_of_birth, gender, location, interests,
+		       created_at, updated_at, last_login_at, is_verified, is_email_verified
+		FROM users WHERE id = $1
+	`
 
-	err := r.db.GetContext(ctx, &u, query, id)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Bio, &u.AvatarURL,
+		&u.Phone, &u.DateOfBirth, &u.Gender, &u.Location, pq.Array(&u.Interests),
+		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt, &u.IsVerified, &u.IsEmailVerified,
+	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("user not found")
 	}
@@ -63,9 +73,18 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User,
 // GetByEmail gets a user by email
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	var u user.User
-	query := `SELECT * FROM users WHERE email = $1`
+	query := `
+		SELECT id, email, name, bio, avatar_url,
+		       phone, date_of_birth, gender, location, interests,
+		       created_at, updated_at, last_login_at, is_verified, is_email_verified
+		FROM users WHERE email = $1
+	`
 
-	err := r.db.GetContext(ctx, &u, query, email)
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
+		&u.ID, &u.Email, &u.Name, &u.Bio, &u.AvatarURL,
+		&u.Phone, &u.DateOfBirth, &u.Gender, &u.Location, pq.Array(&u.Interests),
+		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt, &u.IsVerified, &u.IsEmailVerified,
+	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("user not found")
 	}
@@ -96,7 +115,7 @@ func (r *userRepository) Update(ctx context.Context, u *user.User) error {
 
 	_, err := r.db.ExecContext(ctx, query,
 		u.Name, u.Bio, u.AvatarURL,
-		u.Phone, u.DateOfBirth, u.Gender, u.Location, u.Interests,
+		u.Phone, u.DateOfBirth, u.Gender, u.Location, pq.Array(u.Interests),
 		u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
 	)
 
@@ -237,16 +256,37 @@ func (r *userRepository) Unfollow(ctx context.Context, followerID, followingID u
 // GetFollowers gets users following a specific user
 func (r *userRepository) GetFollowers(ctx context.Context, userID uuid.UUID, limit, offset int) ([]user.User, error) {
 	query := `
-		SELECT u.* FROM users u
+		SELECT u.id, u.email, u.name, u.bio, u.avatar_url,
+		       u.phone, u.date_of_birth, u.gender, u.location, u.interests,
+		       u.created_at, u.updated_at, u.last_login_at, u.is_verified, u.is_email_verified
+		FROM users u
 		INNER JOIN follows f ON u.id = f.follower_id
 		WHERE f.following_id = $1
 		ORDER BY f.created_at DESC
 		LIMIT $2 OFFSET $3
 	`
 
-	var users []user.User
-	err := r.db.SelectContext(ctx, &users, query, userID, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, userID, limit, offset)
 	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []user.User
+	for rows.Next() {
+		var u user.User
+		err := rows.Scan(
+			&u.ID, &u.Email, &u.Name, &u.Bio, &u.AvatarURL,
+			&u.Phone, &u.DateOfBirth, &u.Gender, &u.Location, pq.Array(&u.Interests),
+			&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt, &u.IsVerified, &u.IsEmailVerified,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -256,16 +296,37 @@ func (r *userRepository) GetFollowers(ctx context.Context, userID uuid.UUID, lim
 // GetFollowing gets users that a specific user is following
 func (r *userRepository) GetFollowing(ctx context.Context, userID uuid.UUID, limit, offset int) ([]user.User, error) {
 	query := `
-		SELECT u.* FROM users u
+		SELECT u.id, u.email, u.name, u.bio, u.avatar_url,
+		       u.phone, u.date_of_birth, u.gender, u.location, u.interests,
+		       u.created_at, u.updated_at, u.last_login_at, u.is_verified, u.is_email_verified
+		FROM users u
 		INNER JOIN follows f ON u.id = f.following_id
 		WHERE f.follower_id = $1
 		ORDER BY f.created_at DESC
 		LIMIT $2 OFFSET $3
 	`
 
-	var users []user.User
-	err := r.db.SelectContext(ctx, &users, query, userID, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, userID, limit, offset)
 	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []user.User
+	for rows.Next() {
+		var u user.User
+		err := rows.Scan(
+			&u.ID, &u.Email, &u.Name, &u.Bio, &u.AvatarURL,
+			&u.Phone, &u.DateOfBirth, &u.Gender, &u.Location, pq.Array(&u.Interests),
+			&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt, &u.IsVerified, &u.IsEmailVerified,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -347,15 +408,36 @@ func (r *userRepository) UpdateAverageRating(ctx context.Context, userID uuid.UU
 // SearchUsers searches users by name or email
 func (r *userRepository) SearchUsers(ctx context.Context, query string, limit, offset int) ([]user.User, error) {
 	searchQuery := `
-		SELECT * FROM users
+		SELECT id, email, name, bio, avatar_url,
+		       phone, date_of_birth, gender, location, interests,
+		       created_at, updated_at, last_login_at, is_verified, is_email_verified
+		FROM users
 		WHERE name ILIKE $1 OR email ILIKE $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`
 
-	var users []user.User
-	err := r.db.SelectContext(ctx, &users, searchQuery, "%"+query+"%", limit, offset)
+	rows, err := r.db.QueryContext(ctx, searchQuery, "%"+query+"%", limit, offset)
 	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []user.User
+	for rows.Next() {
+		var u user.User
+		err := rows.Scan(
+			&u.ID, &u.Email, &u.Name, &u.Bio, &u.AvatarURL,
+			&u.Phone, &u.DateOfBirth, &u.Gender, &u.Location, pq.Array(&u.Interests),
+			&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt, &u.IsVerified, &u.IsEmailVerified,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 

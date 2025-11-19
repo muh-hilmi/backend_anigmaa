@@ -122,7 +122,7 @@ func (h *ProfileHandler) GetProfilePosts(c *gin.Context) {
 
 	// Ensure posts is not nil (return empty array instead)
 	if posts == nil {
-		posts = []post.PostResponse{}
+		posts = []post.PostWithDetails{}
 	}
 
 	// Create pagination metadata with correct total
