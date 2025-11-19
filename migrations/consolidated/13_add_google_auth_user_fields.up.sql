@@ -1,8 +1,8 @@
 -- ============================================================================
--- MIGRATION: Add Google Auth User Fields
+-- MIGRATION: Google Auth Only - Remove username/password, Add Enhanced Profile Fields
 -- ============================================================================
--- This migration adds support for Google authentication and enhanced user profiles:
--- 1. Makes username and password_hash nullable (Google auth doesn't need them)
+-- This migration makes the app Google OAuth only:
+-- 1. Drops username and password_hash columns (no traditional auth)
 -- 2. Adds essential user profile fields: phone, date_of_birth, gender, location, interests
 -- 3. Updates constraints and indexes
 -- ============================================================================
@@ -11,31 +11,16 @@
 -- MODIFY USERS TABLE
 -- ============================================================================
 
--- Make username nullable and remove NOT NULL constraint
-ALTER TABLE users ALTER COLUMN username DROP NOT NULL;
+-- Drop username and password_hash columns (Google Auth only)
+ALTER TABLE users DROP COLUMN IF EXISTS username CASCADE;
+ALTER TABLE users DROP COLUMN IF EXISTS password_hash CASCADE;
 
--- Make password_hash nullable (Google OAuth users don't have password)
-ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
-
--- Remove username unique constraint (we'll add it back as a conditional unique)
--- First, drop the existing constraint
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_unique;
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_format;
-
--- Add new columns
+-- Add new profile fields
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS location VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT[];
-
--- Re-add username format check, but only when username is not null
-ALTER TABLE users ADD CONSTRAINT users_username_format
-    CHECK (username IS NULL OR username ~ '^[a-zA-Z0-9_-]{3,50}$');
-
--- Add unique constraint for username when it's not null
--- (PostgreSQL allows multiple NULLs in a unique column)
-CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique_idx ON users(username) WHERE username IS NOT NULL;
 
 -- Add check constraints for new fields
 ALTER TABLE users ADD CONSTRAINT users_phone_format
@@ -64,9 +49,8 @@ CREATE INDEX IF NOT EXISTS idx_users_interests ON users USING GIN(interests) WHE
 -- SUMMARY
 -- ============================================================================
 -- Changes made:
--- 1. Made username and password_hash nullable (supports Google OAuth)
+-- 1. DROPPED username and password_hash columns (Google Auth only!)
 -- 2. Added phone, date_of_birth, gender, location, interests fields
 -- 3. Added validation constraints for phone and gender
 -- 4. Created indexes for efficient querying on new fields
--- 5. Updated username unique constraint to allow multiple NULLs
 -- ============================================================================

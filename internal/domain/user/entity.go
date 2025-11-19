@@ -6,12 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// User represents a user in the system
+// User represents a user in the system (Google Auth only)
 type User struct {
 	ID              uuid.UUID  `json:"id" db:"id"`
 	Email           string     `json:"email" db:"email"`
-	Username        *string    `json:"username,omitempty" db:"username"` // Nullable for Google auth users
-	PasswordHash    *string    `json:"-" db:"password_hash"`             // Nullable for Google auth users
 	Name            string     `json:"name" db:"name"`
 	Bio             *string    `json:"bio,omitempty" db:"bio"`
 	AvatarURL       *string    `json:"avatar_url,omitempty" db:"avatar_url"`
@@ -77,20 +75,6 @@ type UserProfile struct {
 	Privacy  UserPrivacy  `json:"privacy"`
 }
 
-// RegisterRequest represents user registration data
-type RegisterRequest struct {
-	Email    string  `json:"email" binding:"required,email"`
-	Password string  `json:"password" binding:"required,min=8"`
-	Name     string  `json:"name" binding:"required,min=2"`
-	Username *string `json:"username,omitempty" binding:"omitempty,min=3,max=50,alphanum"`
-}
-
-// LoginRequest represents user login credentials
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
 // UpdateProfileRequest represents profile update data
 type UpdateProfileRequest struct {
 	Bio         *string    `json:"bio,omitempty" binding:"omitempty,max=150"`
@@ -117,12 +101,6 @@ type GoogleAuthRequest struct {
 	IDToken string `json:"idToken" binding:"required"`
 }
 
-// ChangePasswordRequest represents password change data
-type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" binding:"required"`
-	NewPassword     string `json:"new_password" binding:"required,min=8"`
-}
-
 // ProfileResponse represents public profile data for API response
 type ProfileResponse struct {
 	ID                     uuid.UUID  `json:"id"`
@@ -147,13 +125,8 @@ type ProfileResponse struct {
 
 // ToProfileResponse converts UserProfile to ProfileResponse
 func (up *UserProfile) ToProfileResponse(baseURL string) ProfileResponse {
-	// Generate share link using username if available, otherwise use user ID
-	var shareLink string
-	if up.User.Username != nil && *up.User.Username != "" {
-		shareLink = baseURL + "/@" + *up.User.Username
-	} else {
-		shareLink = baseURL + "/user/" + up.User.ID.String()
-	}
+	// Generate share link using user ID (no username in Google-only auth)
+	shareLink := baseURL + "/user/" + up.User.ID.String()
 
 	// Initialize empty interests array if nil
 	interests := up.User.Interests

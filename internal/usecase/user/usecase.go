@@ -9,30 +9,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	mathrand "math/rand"
 	"net/http"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/anigmaa/backend/internal/domain/auth"
 	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/anigmaa/backend/pkg/jwt"
-	"github.com/anigmaa/backend/pkg/password"
 	"github.com/google/uuid"
 )
 
 var (
-	ErrUserNotFound          = errors.New("user not found")
-	ErrEmailAlreadyExists    = errors.New("email already exists")
-	ErrUsernameAlreadyExists = errors.New("username already exists")
-	ErrInvalidCredentials    = errors.New("invalid credentials")
-	ErrUnauthorized          = errors.New("unauthorized")
-	ErrAlreadyFollowing      = errors.New("already following this user")
-	ErrNotFollowing          = errors.New("not following this user")
-	ErrCannotFollowSelf      = errors.New("cannot follow yourself")
-	ErrInvalidToken          = errors.New("invalid or expired token")
-	ErrTokenAlreadyUsed      = errors.New("token has already been used")
+	ErrUserNotFound     = errors.New("user not found")
+	ErrUnauthorized     = errors.New("unauthorized")
+	ErrAlreadyFollowing = errors.New("already following this user")
+	ErrNotFollowing     = errors.New("not following this user")
+	ErrCannotFollowSelf = errors.New("cannot follow yourself")
+	ErrInvalidToken     = errors.New("invalid or expired token")
+	ErrTokenAlreadyUsed = errors.New("token has already been used")
 )
 
 // Usecase handles user business logic
@@ -59,158 +52,6 @@ type AuthResponse struct {
 	RefreshToken string     `json:"refresh_token"`
 	User         *user.User `json:"user"`
 	ExpiresIn    int64      `json:"expires_in"` // seconds
-}
-
-// generateUsername creates a unique username from name
-func (uc *Usecase) generateUsername(ctx context.Context, name string, providedUsername *string) (string, error) {
-	// If username is provided, validate and use it
-	if providedUsername != nil && *providedUsername != "" {
-		// Check if username already exists
-		existing, _ := uc.userRepo.GetByUsername(ctx, *providedUsername)
-		if existing != nil {
-			return "", ErrUsernameAlreadyExists
-		}
-		return *providedUsername, nil
-	}
-
-	// Generate username from name
-	// Remove non-alphanumeric characters and convert to lowercase
-	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
-	baseUsername := reg.ReplaceAllString(name, "")
-	baseUsername = strings.ToLower(baseUsername)
-
-	// Limit to 20 characters
-	if len(baseUsername) > 20 {
-		baseUsername = baseUsername[:20]
-	}
-
-	// If baseUsername is empty, use "user"
-	if baseUsername == "" {
-		baseUsername = "user"
-	}
-
-	// Try to find a unique username
-	username := baseUsername
-	counter := 0
-	maxAttempts := 100
-
-	for counter < maxAttempts {
-		existing, _ := uc.userRepo.GetByUsername(ctx, username)
-		if existing == nil {
-			// Username is available
-			return username, nil
-		}
-
-		// Username taken, try with random number
-		counter++
-		username = fmt.Sprintf("%s%d", baseUsername, mathrand.Intn(10000))
-	}
-
-	// If still not found, use UUID suffix
-	return fmt.Sprintf("%s_%s", baseUsername, uuid.New().String()[:8]), nil
-}
-
-// Register registers a new user
-func (uc *Usecase) Register(ctx context.Context, req *user.RegisterRequest) (*AuthResponse, error) {
-	// Check if email already exists
-	existingUser, err := uc.userRepo.GetByEmail(ctx, req.Email)
-	if err == nil && existingUser != nil {
-		return nil, ErrEmailAlreadyExists
-	}
-
-	// Generate unique username
-	username, err := uc.generateUsername(ctx, req.Name, req.Username)
-	if err != nil {
-		return nil, err
-	}
-
-	// Hash password
-	hashedPassword, err := password.Hash(req.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create user
-	now := time.Now()
-	emptyInterests := []string{} // Initialize empty interests array
-	newUser := &user.User{
-		ID:              uuid.New(),
-		Email:           req.Email,
-		Username:        &username,
-		PasswordHash:    &hashedPassword,
-		Name:            req.Name,
-		Interests:       emptyInterests,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		IsVerified:      false,
-		IsEmailVerified: false,
-	}
-
-	if err := uc.userRepo.Create(ctx, newUser); err != nil {
-		return nil, err
-	}
-
-	// Generate tokens
-	accessToken, err := uc.jwtManager.Generate(newUser.ID, newUser.Email)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshToken, err := uc.jwtManager.GenerateRefreshToken(newUser.ID, newUser.Email)
-	if err != nil {
-		return nil, err
-	}
-
-	return &AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User:         newUser,
-		ExpiresIn:    3600, // 1 hour
-	}, nil
-}
-
-// Login authenticates a user
-func (uc *Usecase) Login(ctx context.Context, req *user.LoginRequest) (*AuthResponse, error) {
-	// Get user by email
-	existingUser, err := uc.userRepo.GetByEmail(ctx, req.Email)
-	if err != nil {
-		return nil, ErrInvalidCredentials
-	}
-
-	// Check if user has password (Google auth users don't have password)
-	if existingUser.PasswordHash == nil || *existingUser.PasswordHash == "" {
-		return nil, fmt.Errorf("this account uses Google Sign-In. Please login with Google")
-	}
-
-	// Verify password
-	if err := password.Verify(*existingUser.PasswordHash, req.Password); err != nil {
-		return nil, ErrInvalidCredentials
-	}
-
-	// Update last login
-	now := time.Now()
-	existingUser.LastLoginAt = &now
-	if err := uc.userRepo.Update(ctx, existingUser); err != nil {
-		// Log error but don't fail login
-	}
-
-	// Generate tokens
-	accessToken, err := uc.jwtManager.Generate(existingUser.ID, existingUser.Email)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshToken, err := uc.jwtManager.GenerateRefreshToken(existingUser.ID, existingUser.Email)
-	if err != nil {
-		return nil, err
-	}
-
-	return &AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User:         existingUser,
-		ExpiresIn:    3600, // 1 hour
-	}, nil
 }
 
 // RefreshToken generates a new access token from a refresh token
@@ -255,27 +96,9 @@ func (uc *Usecase) GetProfile(ctx context.Context, userID uuid.UUID) (*user.User
 	return profile, nil
 }
 
-// GetProfileByUsername gets a user's complete profile by username
-func (uc *Usecase) GetProfileByUsername(ctx context.Context, username string) (*user.UserProfile, error) {
-	profile, err := uc.userRepo.GetProfileByUsername(ctx, username)
-	if err != nil {
-		return nil, ErrUserNotFound
-	}
-	return profile, nil
-}
-
 // GetByID gets a user by ID
 func (uc *Usecase) GetByID(ctx context.Context, userID uuid.UUID) (*user.User, error) {
 	existingUser, err := uc.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return nil, ErrUserNotFound
-	}
-	return existingUser, nil
-}
-
-// GetByUsername gets a user by username
-func (uc *Usecase) GetByUsername(ctx context.Context, username string) (*user.User, error) {
-	existingUser, err := uc.userRepo.GetByUsername(ctx, username)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
@@ -494,37 +317,6 @@ func (uc *Usecase) VerifyEmail(ctx context.Context, userID uuid.UUID) error {
 	return uc.userRepo.Update(ctx, existingUser)
 }
 
-// ChangePassword changes a user's password
-func (uc *Usecase) ChangePassword(ctx context.Context, userID uuid.UUID, req *user.ChangePasswordRequest) error {
-	// Get existing user
-	existingUser, err := uc.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return ErrUserNotFound
-	}
-
-	// Check if user has password (Google auth users don't have password)
-	if existingUser.PasswordHash == nil || *existingUser.PasswordHash == "" {
-		return fmt.Errorf("this account uses Google Sign-In and doesn't have a password")
-	}
-
-	// Verify current password
-	if err := password.Verify(*existingUser.PasswordHash, req.CurrentPassword); err != nil {
-		return ErrInvalidCredentials
-	}
-
-	// Hash new password
-	hashedPassword, err := password.Hash(req.NewPassword)
-	if err != nil {
-		return err
-	}
-
-	// Update password
-	existingUser.PasswordHash = &hashedPassword
-	existingUser.UpdatedAt = time.Now()
-
-	return uc.userRepo.Update(ctx, existingUser)
-}
-
 // DeleteAccount deletes a user account
 func (uc *Usecase) DeleteAccount(ctx context.Context, userID uuid.UUID) error {
 	// Check if user exists
@@ -588,8 +380,6 @@ func (uc *Usecase) LoginWithGoogle(ctx context.Context, req *user.GoogleAuthRequ
 		newUser := &user.User{
 			ID:              uuid.New(),
 			Email:           googleInfo.Email,
-			Username:        nil, // No username for Google auth users
-			PasswordHash:    nil, // No password for Google auth users
 			Name:            googleInfo.Name,
 			AvatarURL:       &googleInfo.Picture,
 			Interests:       emptyInterests,
@@ -753,91 +543,6 @@ func (uc *Usecase) VerifyEmailWithToken(ctx context.Context, tokenValue string) 
 	// Mark token as used
 	if err := uc.authTokenRepo.MarkTokenAsUsed(ctx, tokenValue); err != nil {
 		// Log error but don't fail since verification succeeded
-	}
-
-	return nil
-}
-
-// SendPasswordResetEmail sends a password reset token
-func (uc *Usecase) SendPasswordResetEmail(ctx context.Context, email string) (string, error) {
-	// Get user by email
-	user, err := uc.userRepo.GetByEmail(ctx, email)
-	if err != nil {
-		return "", ErrUserNotFound
-	}
-
-	// Delete any existing password reset tokens for this user
-	if err := uc.authTokenRepo.DeleteTokensByUser(ctx, user.ID, auth.TokenTypePasswordReset); err != nil {
-		// Log error but don't fail
-	}
-
-	// Generate new token
-	tokenValue, err := generateToken()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate token: %w", err)
-	}
-
-	// Create token record (expires in 1 hour)
-	token := &auth.AuthToken{
-		ID:        uuid.New(),
-		UserID:    user.ID,
-		Token:     tokenValue,
-		TokenType: auth.TokenTypePasswordReset,
-		ExpiresAt: time.Now().Add(1 * time.Hour),
-		CreatedAt: time.Now(),
-	}
-
-	if err := uc.authTokenRepo.CreateToken(ctx, token); err != nil {
-		return "", fmt.Errorf("failed to create token: %w", err)
-	}
-
-	// TODO: Send actual email with token
-	// For now, return the token (in production, this would be sent via email service)
-
-	return tokenValue, nil
-}
-
-// ResetPasswordWithToken resets a user's password using a token
-func (uc *Usecase) ResetPasswordWithToken(ctx context.Context, tokenValue string, newPassword string) error {
-	// Get token
-	token, err := uc.authTokenRepo.GetTokenByValue(ctx, tokenValue)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return ErrInvalidToken
-		}
-		return fmt.Errorf("failed to get token: %w", err)
-	}
-
-	// Check if token is valid
-	if !token.IsValid() {
-		if token.IsUsed() {
-			return ErrTokenAlreadyUsed
-		}
-		return ErrInvalidToken
-	}
-
-	// Get user
-	user, err := uc.userRepo.GetByID(ctx, token.UserID)
-	if err != nil {
-		return ErrUserNotFound
-	}
-
-	// Hash new password
-	hashedPassword, err := password.Hash(newPassword)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	// Update user password
-	user.PasswordHash = hashedPassword
-	user.UpdatedAt = time.Now()
-	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-
-	// Mark token as used
-	if err := uc.authTokenRepo.MarkTokenAsUsed(ctx, tokenValue); err != nil {
-		// Log error but don't fail since password reset succeeded
 	}
 
 	return nil
