@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/anigmaa/backend/internal/delivery/http/middleware"
+	"github.com/anigmaa/backend/internal/domain/post"
 	eventUsecase "github.com/anigmaa/backend/internal/usecase/event"
 	postUsecase "github.com/anigmaa/backend/internal/usecase/post"
 	userUsecase "github.com/anigmaa/backend/internal/usecase/user"
@@ -117,6 +118,11 @@ func (h *ProfileHandler) GetProfilePosts(c *gin.Context) {
 	if err != nil {
 		response.InternalError(c, "Failed to get user posts", err.Error())
 		return
+	}
+
+	// Ensure posts is not nil (return empty array instead)
+	if posts == nil {
+		posts = []post.PostResponse{}
 	}
 
 	// Create pagination metadata with correct total

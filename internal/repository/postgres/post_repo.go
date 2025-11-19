@@ -505,7 +505,7 @@ func (r *postRepository) GetUserPosts(ctx context.Context, authorID, viewerID uu
 		INNER JOIN users u ON p.author_id = u.id
 		LEFT JOIN events e ON p.attached_event_id = e.id
 		LEFT JOIN users eh ON e.host_id = eh.id
-		WHERE p.author_id = $1 AND p.visibility IN ('public', 'friends')
+		WHERE p.author_id = $1 AND p.visibility IN ('public', 'followers')
 		ORDER BY p.created_at DESC
 		LIMIT $3 OFFSET $4
 	`
