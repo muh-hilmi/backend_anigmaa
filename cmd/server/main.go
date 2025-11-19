@@ -204,11 +204,8 @@ func main() {
 		// Public routes (no auth required)
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
+			// Google OAuth only - traditional auth removed
 			auth.POST("/google", authHandler.LoginWithGoogle)
-			auth.POST("/forgot-password", authHandler.ForgotPassword)
-			auth.POST("/reset-password", authHandler.ResetPassword)
 			auth.POST("/verify-email", authHandler.VerifyEmail)
 		}
 
@@ -221,7 +218,6 @@ func main() {
 		{
 			authProtected.POST("/logout", authHandler.Logout)
 			authProtected.POST("/refresh", authHandler.RefreshToken)
-			authProtected.POST("/change-password", authHandler.ChangePassword)
 			authProtected.POST("/resend-verification", authHandler.ResendVerificationEmail)
 		}
 
@@ -334,7 +330,9 @@ func main() {
 			analytics.GET("/host/events", analyticsHandler.GetHostEventsList)
 		}
 
-		// Profile routes (public - no auth required for viewing profiles)
+		// Profile routes (DEPRECATED - username lookup removed in Google OAuth migration)
+		// These routes will always return 404 since usernames no longer exist
+		// TODO: Replace with user ID-based routes (e.g., /users/:id/profile)
 		profile := v1.Group("/profile")
 		{
 			profile.GET("/:username", profileHandler.GetProfileByUsername)
