@@ -200,6 +200,29 @@ func (uc *Usecase) UpdateEvent(ctx context.Context, eventID, userID uuid.UUID, r
 		return nil, err
 	}
 
+	// Handle image updates if provided
+	if req.ImageURLs != nil {
+		// Delete all existing images
+		if err := uc.eventRepo.DeleteAllImages(ctx, eventID); err != nil {
+			return nil, err
+		}
+
+		// Add new images if any
+		if len(*req.ImageURLs) > 0 {
+			images := make([]event.EventImage, len(*req.ImageURLs))
+			for i, url := range *req.ImageURLs {
+				images[i] = event.EventImage{
+					EventID:  eventID,
+					ImageURL: url,
+					Order:    i,
+				}
+			}
+			if err := uc.eventRepo.AddImages(ctx, images); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return existingEvent, nil
 }
 
@@ -457,4 +480,54 @@ func (uc *Usecase) UpdateEventStatus(ctx context.Context, eventID uuid.UUID) err
 	}
 
 	return nil
+}
+
+// AddEventImages adds images to an existing event
+func (uc *Usecase) AddEventImages(ctx context.Context, eventID, userID uuid.UUID, imageURLs []string) error {
+	// Get existing event
+	existingEvent, err := uc.eventRepo.GetByID(ctx, eventID)
+	if err != nil {
+		return ErrEventNotFound
+	}
+
+	// Check if user is the host
+	if existingEvent.HostID != userID {
+		return ErrUnauthorized
+	}
+
+	// Get current images to determine the next order index
+	currentImages, err := uc.eventRepo.GetImages(ctx, eventID)
+	if err != nil {
+		return err
+	}
+
+	// Create new image records starting from the next order index
+	images := make([]event.EventImage, len(imageURLs))
+	startOrder := len(currentImages)
+	for i, url := range imageURLs {
+		images[i] = event.EventImage{
+			EventID:  eventID,
+			ImageURL: url,
+			Order:    startOrder + i,
+		}
+	}
+
+	return uc.eventRepo.AddImages(ctx, images)
+}
+
+// DeleteEventImage deletes a specific image from an event
+func (uc *Usecase) DeleteEventImage(ctx context.Context, eventID, imageID, userID uuid.UUID) error {
+	// Get existing event
+	existingEvent, err := uc.eventRepo.GetByID(ctx, eventID)
+	if err != nil {
+		return ErrEventNotFound
+	}
+
+	// Check if user is the host
+	if existingEvent.HostID != userID {
+		return ErrUnauthorized
+	}
+
+	// Delete the image
+	return uc.eventRepo.DeleteImage(ctx, imageID)
 }

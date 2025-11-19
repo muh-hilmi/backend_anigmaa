@@ -739,3 +739,131 @@ func (h *EventHandler) GetEventTickets(c *gin.Context) {
 		"offset":   offset,
 	})
 }
+
+// AddEventImages godoc
+// @Summary Add images to event
+// @Description Add one or more images to an existing event (host only)
+// @Tags events
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Event ID" format(uuid)
+// @Param request body object{image_urls=[]string} true "Image URLs to add"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /events/{id}/images [post]
+func (h *EventHandler) AddEventImages(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse event ID from path
+	eventIDStr := c.Param("id")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid event ID", err.Error())
+		return
+	}
+
+	var req struct {
+		ImageURLs []string `json:"image_urls" binding:"required,min=1"`
+	}
+
+	// Parse request body
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.eventUsecase.AddEventImages(c.Request.Context(), eventID, userID, req.ImageURLs); err != nil {
+		if err == eventUsecase.ErrEventNotFound {
+			response.NotFound(c, "Event not found")
+			return
+		}
+		if err == eventUsecase.ErrUnauthorized {
+			response.Forbidden(c, "Only the event host can add images")
+			return
+		}
+		response.InternalError(c, "Failed to add images", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Images added successfully", nil)
+}
+
+// DeleteEventImage godoc
+// @Summary Delete event image
+// @Description Delete a specific image from an event (host only)
+// @Tags events
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Event ID" format(uuid)
+// @Param imageId path string true "Image ID" format(uuid)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /events/{id}/images/{imageId} [delete]
+func (h *EventHandler) DeleteEventImage(c *gin.Context) {
+	// Get user ID from context
+	userIDStr, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID", err.Error())
+		return
+	}
+
+	// Parse event ID from path
+	eventIDStr := c.Param("id")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid event ID", err.Error())
+		return
+	}
+
+	// Parse image ID from path
+	imageIDStr := c.Param("imageId")
+	imageID, err := uuid.Parse(imageIDStr)
+	if err != nil {
+		response.BadRequest(c, "Invalid image ID", err.Error())
+		return
+	}
+
+	// Call usecase
+	if err := h.eventUsecase.DeleteEventImage(c.Request.Context(), eventID, imageID, userID); err != nil {
+		if err == eventUsecase.ErrEventNotFound {
+			response.NotFound(c, "Event not found")
+			return
+		}
+		if err == eventUsecase.ErrUnauthorized {
+			response.Forbidden(c, "Only the event host can delete images")
+			return
+		}
+		response.InternalError(c, "Failed to delete image", err.Error())
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Image deleted successfully", nil)
+}

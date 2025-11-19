@@ -38,6 +38,7 @@ type Repository interface {
 	AddImages(ctx context.Context, images []EventImage) error
 	GetImages(ctx context.Context, eventID uuid.UUID) ([]string, error)
 	DeleteImage(ctx context.Context, imageID uuid.UUID) error
+	DeleteAllImages(ctx context.Context, eventID uuid.UUID) error
 
 	// Status management
 	UpdateStatus(ctx context.Context, eventID uuid.UUID, status EventStatus) error

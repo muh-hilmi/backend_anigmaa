@@ -143,6 +143,7 @@ type UpdateEventRequest struct {
 	Privacy         *EventPrivacy  `json:"privacy,omitempty"`
 	Requirements    *string        `json:"requirements,omitempty"`
 	Status          *EventStatus   `json:"status,omitempty"`
+	ImageURLs       *[]string      `json:"image_urls,omitempty"` // If provided, replaces all existing images
 }
 
 // EventFilter represents event filtering options
