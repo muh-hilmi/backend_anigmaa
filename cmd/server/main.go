@@ -258,6 +258,10 @@ func main() {
 			eventsProtected.GET("/hosted", eventHandler.GetHostedEvents)
 			eventsProtected.GET("/joined", eventHandler.GetJoinedEvents)
 
+			// Event image management endpoints
+			eventsProtected.POST("/:id/images", eventHandler.AddEventImages)
+			eventsProtected.DELETE("/:id/images/:imageId", eventHandler.DeleteEventImage)
+
 			// Event Q&A endpoints
 			eventsProtected.GET("/:id/qna", qnaHandler.GetEventQnA)
 			eventsProtected.POST("/:id/qna", qnaHandler.AskQuestion)

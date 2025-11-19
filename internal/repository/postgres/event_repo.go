@@ -361,6 +361,12 @@ func (r *eventRepository) DeleteImage(ctx context.Context, imageID uuid.UUID) er
 	return err
 }
 
+func (r *eventRepository) DeleteAllImages(ctx context.Context, eventID uuid.UUID) error {
+	query := `DELETE FROM event_images WHERE event_id = $1`
+	_, err := r.db.ExecContext(ctx, query, eventID)
+	return err
+}
+
 func (r *eventRepository) UpdateStatus(ctx context.Context, eventID uuid.UUID, status event.EventStatus) error {
 	query := `UPDATE events SET status = $1, updated_at = $2 WHERE id = $3`
 	_, err := r.db.ExecContext(ctx, query, status, time.Now(), eventID)
