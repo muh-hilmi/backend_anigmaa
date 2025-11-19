@@ -118,7 +118,7 @@ type CreateEventRequest struct {
 	LocationAddress  string        `json:"location_address" binding:"required"`
 	LocationLat      float64       `json:"location_lat" binding:"required,min=-90,max=90"`
 	LocationLng      float64       `json:"location_lng" binding:"required,min=-180,max=180"`
-	MaxAttendees     int           `json:"max_attendees" binding:"required,min=2,max=100"`
+	MaxAttendees     int           `json:"max_attendees" binding:"required,min=3,max=100"`
 	Price            *float64      `json:"price,omitempty" binding:"omitempty,min=0"`
 	IsFree           bool          `json:"is_free"`
 	Privacy          EventPrivacy  `json:"privacy" binding:"required"`
@@ -138,7 +138,7 @@ type UpdateEventRequest struct {
 	LocationAddress *string        `json:"location_address,omitempty"`
 	LocationLat     *float64       `json:"location_lat,omitempty" binding:"omitempty,min=-90,max=90"`
 	LocationLng     *float64       `json:"location_lng,omitempty" binding:"omitempty,min=-180,max=180"`
-	MaxAttendees    *int           `json:"max_attendees,omitempty" binding:"omitempty,min=2,max=100"`
+	MaxAttendees    *int           `json:"max_attendees,omitempty" binding:"omitempty,min=3,max=100"`
 	Price           *float64       `json:"price,omitempty" binding:"omitempty,min=0"`
 	Privacy         *EventPrivacy  `json:"privacy,omitempty"`
 	Requirements    *string        `json:"requirements,omitempty"`
