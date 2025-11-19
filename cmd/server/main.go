@@ -22,6 +22,7 @@ import (
 	"github.com/anigmaa/backend/internal/usecase/analytics"
 	"github.com/anigmaa/backend/internal/usecase/community"
 	"github.com/anigmaa/backend/internal/usecase/event"
+	"github.com/anigmaa/backend/internal/usecase/feed_ranking"
 	"github.com/anigmaa/backend/internal/usecase/post"
 	"github.com/anigmaa/backend/internal/usecase/qna"
 	"github.com/anigmaa/backend/internal/usecase/ticket"
@@ -121,6 +122,7 @@ func main() {
 	analyticsUsecase := analytics.NewUsecase(eventRepo, ticketRepo)
 	qnaUsecase := qna.NewUsecase(qnaRepo, eventRepo)
 	communityUsecase := community.NewUsecase(communityRepo)
+	feedRanker := feed_ranking.NewRanker()
 
 	// Initialize HTTP handlers
 	authHandler := handler.NewAuthHandler(userUsecase, validate)
@@ -134,6 +136,7 @@ func main() {
 	uploadHandler := handler.NewUploadHandler(storageService)
 	communityHandler := handler.NewCommunityHandler(communityUsecase, validate)
 	paymentHandler := handler.NewPaymentHandler(midtransClient, ticketRepo, eventRepo, userRepo)
+	feedRankingHandler := handler.NewFeedRankingHandler(feedRanker)
 
 	// Setup router
 	router := gin.Default()
@@ -358,6 +361,12 @@ func main() {
 		upload.Use(authMiddleware)
 		{
 			upload.POST("/image", uploadHandler.UploadImage)
+		}
+
+		// Feed Ranking routes (public - no auth required for flexibility)
+		feed := v1.Group("/feed")
+		{
+			feed.POST("/rank", feedRankingHandler.RankFeeds)
 		}
 
 		// Community routes
