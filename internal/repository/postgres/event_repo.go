@@ -136,6 +136,12 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 	args := []interface{}{}
 	argCount := 1
 
+	// Default: Only show upcoming and ongoing events (hide completed events)
+	// This can be overridden by explicitly setting filter.Status
+	if filter.Status == nil {
+		query += " AND e.status IN ('upcoming', 'ongoing')"
+	}
+
 	if filter.Category != nil {
 		query += fmt.Sprintf(" AND e.category = $%d", argCount)
 		args = append(args, *filter.Category)
@@ -171,28 +177,23 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 			random()`
 
 	case "for_you":
-		// CTO REVIEW: CRITICAL MATH ERROR in formula
-		// EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400.0 = positive number (days since creation)
-		// Multiplying by -0.3 makes it NEGATIVE
-		// This means OLD events get LOWER scores (more negative)
-		// But we're sorting DESC, so newer events naturally rank higher (less negative)
-		// HOWEVER: The logic is backwards - we want recent events to ADD to score, not subtract
-		// Fix: Use GREATEST(30 - EXTRACT(DAY FROM (NOW() - e.created_at)), 0) to give recency bonus
-		// Also: No personalization yet - just random + engagement + broken recency
-		// For You: Personalized mix - show variety with moderate randomness
-		// Balance between popularity and discovery
+		// For You: Personalized mix - balance popularity with discovery
+		// Recency bonus: newer events get higher scores (max +9 for brand new)
+		// - Event created today: GREATEST(30 - 0, 0) * 0.3 = 9.0 (max bonus)
+		// - Event created 15 days ago: GREATEST(30 - 15, 0) * 0.3 = 4.5 (medium bonus)
+		// - Event created 30+ days ago: GREATEST(30 - 30, 0) * 0.3 = 0 (no bonus)
 		query += ` ORDER BY
 			((SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') * 0.5 +
-			 EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400.0 * -0.3) +
+			 GREATEST(30 - EXTRACT(DAY FROM (NOW() - e.created_at)), 0) * 0.3) +
 			random() * 10 DESC`
 
 	case "chill":
-		// CTO REVIEW: Missing filters - should also check is_free=true OR price < 200K
-		// And should filter max_attendees < 30 in WHERE clause, not just ORDER BY
-		// Chill: Smaller, intimate events - prefer low capacity/attendees
-		// Sort by smallest max_attendees and fewest current attendees
-		query += ` ORDER BY
-			COALESCE(e.max_attendees, 999999) ASC,
+		// Chill: Small, intimate, budget-friendly events
+		// Filter for small capacity (<50) AND (free OR low price <200000)
+		query += ` AND (e.max_attendees < 50)
+			AND (e.is_free = true OR e.price < 200000)
+			ORDER BY
+			e.max_attendees ASC,
 			(SELECT COUNT(*) FROM event_attendees WHERE event_id = e.id AND status = 'confirmed') ASC,
 			random()`
 
@@ -428,6 +429,12 @@ func (r *eventRepository) CountEvents(ctx context.Context, filter *event.EventFi
 	query := `SELECT COUNT(*) FROM events WHERE 1=1`
 	args := []interface{}{}
 	argCount := 1
+
+	// Default: Only count upcoming and ongoing events (hide completed events)
+	// This can be overridden by explicitly setting filter.Status
+	if filter.Status == nil {
+		query += " AND status IN ('upcoming', 'ongoing')"
+	}
 
 	if filter.Category != nil {
 		query += fmt.Sprintf(" AND category = $%d", argCount)
