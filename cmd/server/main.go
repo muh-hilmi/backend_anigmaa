@@ -205,8 +205,8 @@ func main() {
 		auth := v1.Group("/auth")
 		{
 			// Google OAuth only - traditional auth removed
+			// Email verification removed - Google already verifies emails
 			auth.POST("/google", authHandler.LoginWithGoogle)
-			auth.POST("/verify-email", authHandler.VerifyEmail)
 		}
 
 		// Protected routes (auth required)
@@ -218,7 +218,6 @@ func main() {
 		{
 			authProtected.POST("/logout", authHandler.Logout)
 			authProtected.POST("/refresh", authHandler.RefreshToken)
-			authProtected.POST("/resend-verification", authHandler.ResendVerificationEmail)
 		}
 
 		// User routes

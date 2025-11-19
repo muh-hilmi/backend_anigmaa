@@ -217,7 +217,17 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 
 	var events []event.EventWithDetails
 	err := r.db.SelectContext(ctx, &events, query, args...)
-	return events, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate image URLs for each event
+	for i := range events {
+		images, _ := r.GetImages(ctx, events[i].ID)
+		events[i].ImageURLs = images
+	}
+
+	return events, nil
 }
 
 func (r *eventRepository) GetByHost(ctx context.Context, hostID uuid.UUID, limit, offset int) ([]event.EventWithDetails, error) {
@@ -237,7 +247,17 @@ func (r *eventRepository) GetByHost(ctx context.Context, hostID uuid.UUID, limit
 
 	var events []event.EventWithDetails
 	err := r.db.SelectContext(ctx, &events, query, hostID, limit, offset)
-	return events, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate image URLs for each event
+	for i := range events {
+		images, _ := r.GetImages(ctx, events[i].ID)
+		events[i].ImageURLs = images
+	}
+
+	return events, nil
 }
 
 func (r *eventRepository) GetJoinedEvents(ctx context.Context, userID uuid.UUID, limit, offset int) ([]event.EventWithDetails, error) {

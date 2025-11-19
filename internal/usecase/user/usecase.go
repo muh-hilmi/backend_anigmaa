@@ -409,20 +409,15 @@ func (uc *Usecase) LoginWithGoogle(ctx context.Context, req *user.GoogleAuthRequ
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			LastLoginAt:     &now,
-			IsVerified:      false,
-			IsEmailVerified: false, // Always false for new users, they need to verify
+			IsVerified:      true,  // Google OAuth users are auto-verified
+			IsEmailVerified: true,  // Google already verifies emails
 		}
 
 		if err := uc.userRepo.Create(ctx, newUser); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
 
-		// Send verification email for new users
-		_, err = uc.SendVerificationEmail(ctx, newUser.ID)
-		if err != nil {
-			// Log error but don't fail registration
-			// In production, you would log this error properly
-		}
+		// No email verification needed - Google already verifies emails
 
 		existingUser = newUser
 	} else {
