@@ -115,6 +115,12 @@ func (r *eventRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) ([]event.EventWithDetails, error) {
+	// CTO REVIEW: CRITICAL BUG - Completed events are being shown in discovery modes
+	// Issue: WHERE clause only has "WHERE 1=1" with no default status filter
+	// Impact: Users see past/completed events in event page and discover modes (trending/chill/for_you)
+	// This makes the app look stale and provides no value to users
+	// Fix: Add default filter "WHERE e.status IN ('upcoming', 'ongoing')" to hide completed events
+	// Priority: URGENT - Production blocker, severely impacts UX
 	query := `
 		SELECT e.id, e.host_id, e.title, e.description, e.category, e.start_time, e.end_time,
 			e.location_name, e.location_address, e.location_lat, e.location_lng,
@@ -148,9 +154,15 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 		argCount++
 	}
 
+	// CTO REVIEW: Discovery mode algorithms need improvement
+	// All modes are missing the completed event filter (see line 126 comment)
+	// "chill" mode should also filter by price/free status and max_attendees < 30
+	// "for_you" has BROKEN MATH - see below
+
 	// Apply different sorting based on discovery mode
 	switch filter.Mode {
 	case "trending":
+		// CTO REVIEW: Algorithm is OK but needs status filter
 		// Trending: Popular/new events - prioritize engagement + recency
 		// Combine attendees count with how recent the event is
 		query += ` ORDER BY
@@ -159,6 +171,14 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 			random()`
 
 	case "for_you":
+		// CTO REVIEW: CRITICAL MATH ERROR in formula
+		// EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400.0 = positive number (days since creation)
+		// Multiplying by -0.3 makes it NEGATIVE
+		// This means OLD events get LOWER scores (more negative)
+		// But we're sorting DESC, so newer events naturally rank higher (less negative)
+		// HOWEVER: The logic is backwards - we want recent events to ADD to score, not subtract
+		// Fix: Use GREATEST(30 - EXTRACT(DAY FROM (NOW() - e.created_at)), 0) to give recency bonus
+		// Also: No personalization yet - just random + engagement + broken recency
 		// For You: Personalized mix - show variety with moderate randomness
 		// Balance between popularity and discovery
 		query += ` ORDER BY
@@ -167,6 +187,8 @@ func (r *eventRepository) List(ctx context.Context, filter *event.EventFilter) (
 			random() * 10 DESC`
 
 	case "chill":
+		// CTO REVIEW: Missing filters - should also check is_free=true OR price < 200K
+		// And should filter max_attendees < 30 in WHERE clause, not just ORDER BY
 		// Chill: Smaller, intimate events - prefer low capacity/attendees
 		// Sort by smallest max_attendees and fewest current attendees
 		query += ` ORDER BY

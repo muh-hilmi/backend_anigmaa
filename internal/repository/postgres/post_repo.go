@@ -286,6 +286,13 @@ func (r *postRepository) List(ctx context.Context, filter *post.PostFilter, user
 // GetFeed gets the feed for a user with random + engagement bias algorithm
 // Algorithm: Random selection from top N recent posts, weighted by engagement score
 // Engagement score = likes + (comments * 2) + (reposts * 3)
+//
+// CTO REVIEW: PERFORMANCE - Missing database index
+// Issue: Query uses "WHERE p.visibility = 'public' ORDER BY p.created_at DESC"
+// Without composite index on (visibility, created_at), this will be slow with many posts
+// Recommendation: CREATE INDEX idx_posts_visibility_created ON posts(visibility, created_at DESC);
+// Also: random() can be expensive on large datasets - consider pre-computed trending score
+// Priority: MEDIUM - Will need optimization as post count grows
 func (r *postRepository) GetFeed(ctx context.Context, userID uuid.UUID, limit, offset int) ([]post.PostWithDetails, error) {
 	query := `
 		WITH recent_posts AS (

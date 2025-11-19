@@ -152,6 +152,12 @@ func (r *commentRepository) Delete(ctx context.Context, commentID uuid.UUID) err
 
 // GetByPost gets comments for a post
 func (r *commentRepository) GetByPost(ctx context.Context, postID, userID uuid.UUID, limit, offset int) ([]comment.CommentWithDetails, error) {
+	// CTO REVIEW: CRITICAL BUG - Field name mismatch causing comment avatars not to display
+	// Issue: Line 166 aliases as "author_avatar" but scan expects "author_avatar_url" (line 202)
+	// This mismatch causes avatar data to not populate correctly
+	// Impact: Comments display without user avatars, degraded UX
+	// Fix: Change "author_avatar" to "author_avatar_url" on line 166
+	// Priority: URGENT - Production blocker
 	query := `
 		SELECT
 			c.id,

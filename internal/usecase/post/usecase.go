@@ -404,6 +404,16 @@ func (uc *Usecase) GetBookmarks(ctx context.Context, userID uuid.UUID, limit, of
 		limit = 100
 	}
 
+	// CTO REVIEW: PERFORMANCE - N+1 Query Problem
+	// Issue: Fetching bookmarks then looping to get each post individually
+	// If user has 20 bookmarks, this makes 21 database queries (1 + 20)
+	// Impact: Slow response time, high database load, poor scalability
+	// Fix: Create single repository method GetBookmarkedPostsWithDetails that uses JOIN
+	//   SELECT p.*, b.created_at as bookmarked_at FROM posts p
+	//   INNER JOIN bookmarks b ON p.id = b.post_id
+	//   WHERE b.user_id = $1 ORDER BY b.created_at DESC LIMIT $2 OFFSET $3
+	// Priority: MEDIUM - Should fix before scaling
+
 	// Get bookmark records
 	bookmarks, err := uc.interactionRepo.GetBookmarks(ctx, userID, limit, offset)
 	if err != nil {

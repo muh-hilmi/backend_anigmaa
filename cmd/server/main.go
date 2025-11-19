@@ -184,6 +184,20 @@ func main() {
 		})
 	})
 
+	// CTO REVIEW: PRODUCTION BLOCKERS - Missing critical middleware
+	// 1. NO RATE LIMITING - API is vulnerable to abuse/DDoS
+	//    Fix: Add rate limiting middleware (e.g., gin-limiter, tollbooth)
+	//    Recommended: 100 req/min per IP for public endpoints, 300 req/min for authenticated
+	// 2. NO REQUEST TIMEOUT - Long-running queries can exhaust resources
+	//    Fix: Add context timeout middleware (e.g., 30s max)
+	// 3. NO ERROR MONITORING - No Sentry/Rollbar integration for production errors
+	//    Fix: Add error tracking service integration
+	// 4. NO GRACEFUL SHUTDOWN TESTING - Server may cut connections abruptly
+	//    Fix: Verify graceful shutdown waits for in-flight requests (see line 340+)
+	// 5. CORS might need adjustment for production domains
+	//    Fix: Review CORS settings for production deployment
+	// Priority: URGENT - These are production deployment blockers
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
