@@ -33,12 +33,12 @@ type Ticket struct {
 // TicketWithDetails includes additional ticket information
 type TicketWithDetails struct {
 	Ticket
-	UserName        string  `json:"user_name"`
-	UserEmail       string  `json:"user_email"`
-	EventTitle      string  `json:"event_title"`
-	EventStartTime  time.Time `json:"event_start_time"`
-	EventLocation   string  `json:"event_location"`
-	QRCode          *string `json:"qr_code,omitempty"` // Base64-encoded QR code PNG
+	UserName       string    `json:"user_name"`
+	UserEmail      string    `json:"user_email"`
+	EventTitle     string    `json:"event_title"`
+	EventStartTime time.Time `json:"event_start_time"`
+	EventLocation  string    `json:"event_location"`
+	QRCode         *string   `json:"qr_code,omitempty"` // Base64-encoded QR code PNG
 }
 
 // TransactionStatus represents the payment transaction status

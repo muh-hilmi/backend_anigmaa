@@ -3,9 +3,11 @@ package middleware
 import (
 	"strings"
 
+	"github.com/anigmaa/backend/internal/domain/user"
 	"github.com/anigmaa/backend/pkg/jwt"
 	"github.com/anigmaa/backend/pkg/response"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // JWTAuth middleware validates JWT token
@@ -60,4 +62,43 @@ func GetEmail(c *gin.Context) (string, bool) {
 		return "", false
 	}
 	return email.(string), true
+}
+
+// RequireEmailVerification middleware checks if user's email is verified
+// This should be used AFTER JWTAuth middleware
+func RequireEmailVerification(userRepo user.Repository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get user ID from context (set by JWTAuth middleware)
+		userIDStr, exists := GetUserID(c)
+		if !exists {
+			response.Unauthorized(c, "User not authenticated")
+			c.Abort()
+			return
+		}
+
+		// Parse user ID
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			response.BadRequest(c, "Invalid user ID", err.Error())
+			c.Abort()
+			return
+		}
+
+		// Get user from database
+		currentUser, err := userRepo.GetByID(c.Request.Context(), userID)
+		if err != nil {
+			response.Unauthorized(c, "User not found")
+			c.Abort()
+			return
+		}
+
+		// Check if email is verified
+		if !currentUser.IsEmailVerified {
+			response.Error(c, 403, "Email verification required. Please verify your email to access this feature.", "EMAIL_VERIFICATION_REQUIRED", "")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }

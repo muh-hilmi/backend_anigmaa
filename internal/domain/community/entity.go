@@ -79,7 +79,7 @@ type UpdateCommunityRequest struct {
 
 // CommunityFilter represents community filtering options
 type CommunityFilter struct {
-	Search *string  `form:"search"`
+	Search  *string  `form:"search"`
 	Privacy *Privacy `form:"privacy"`
 	Limit   int      `form:"limit"`
 	Offset  int      `form:"offset"`

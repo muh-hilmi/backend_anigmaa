@@ -133,15 +133,15 @@ func (m *MidtransClient) CreateSnapToken(ctx context.Context, req *SnapRequest) 
 
 // TransactionStatus represents transaction status from webhook/notification
 type TransactionStatus struct {
-	TransactionID     string  `json:"transaction_id"`
-	OrderID           string  `json:"order_id"`
-	GrossAmount       string  `json:"gross_amount"`
-	PaymentType       string  `json:"payment_type"`
-	TransactionTime   string  `json:"transaction_time"`
-	TransactionStatus string  `json:"transaction_status"`
-	FraudStatus       string  `json:"fraud_status,omitempty"`
-	StatusCode        string  `json:"status_code"`
-	SignatureKey      string  `json:"signature_key"`
+	TransactionID     string `json:"transaction_id"`
+	OrderID           string `json:"order_id"`
+	GrossAmount       string `json:"gross_amount"`
+	PaymentType       string `json:"payment_type"`
+	TransactionTime   string `json:"transaction_time"`
+	TransactionStatus string `json:"transaction_status"`
+	FraudStatus       string `json:"fraud_status,omitempty"`
+	StatusCode        string `json:"status_code"`
+	SignatureKey      string `json:"signature_key"`
 }
 
 // GetTransactionStatus fetches transaction status from Midtrans

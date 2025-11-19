@@ -12,12 +12,12 @@ import (
 )
 
 var (
-	ErrCommunityNotFound  = errors.New("community not found")
-	ErrAlreadyMember      = errors.New("already a member")
-	ErrNotMember          = errors.New("not a member")
-	ErrUnauthorized       = errors.New("unauthorized")
-	ErrInvalidSlug        = errors.New("invalid slug")
-	ErrSlugAlreadyExists  = errors.New("slug already exists")
+	ErrCommunityNotFound = errors.New("community not found")
+	ErrAlreadyMember     = errors.New("already a member")
+	ErrNotMember         = errors.New("not a member")
+	ErrUnauthorized      = errors.New("unauthorized")
+	ErrInvalidSlug       = errors.New("invalid slug")
+	ErrSlugAlreadyExists = errors.New("slug already exists")
 )
 
 // Usecase handles community business logic

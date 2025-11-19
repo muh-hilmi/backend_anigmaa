@@ -46,18 +46,18 @@ type Post struct {
 // PostWithDetails includes additional post information
 type PostWithDetails struct {
 	Post
-	AuthorName          string    `json:"author_name"`
-	AuthorAvatarURL     *string   `json:"author_avatar_url"`
-	AuthorIsVerified    bool      `json:"author_is_verified"`
-	ImageURLs           []string  `json:"image_urls,omitempty"`
-	AttachedEvent       *EventSummary `json:"attached_event,omitempty"`
-	OriginalPost        *Post     `json:"original_post,omitempty"`
-	OriginalPostAuthor  *AuthorSummary `json:"original_post_author,omitempty"`
-	IsLikedByUser       bool      `json:"is_liked_by_user"`
-	IsRepostedByUser    bool      `json:"is_reposted_by_user"`
-	IsBookmarkedByUser  bool      `json:"is_bookmarked_by_user"`
-	Hashtags            []string  `json:"hashtags,omitempty"`
-	Mentions            []string  `json:"mentions,omitempty"`
+	AuthorName         string         `json:"author_name"`
+	AuthorAvatarURL    *string        `json:"author_avatar_url"`
+	AuthorIsVerified   bool           `json:"author_is_verified"`
+	ImageURLs          []string       `json:"image_urls,omitempty"`
+	AttachedEvent      *EventSummary  `json:"attached_event,omitempty"`
+	OriginalPost       *Post          `json:"original_post,omitempty"`
+	OriginalPostAuthor *AuthorSummary `json:"original_post_author,omitempty"`
+	IsLikedByUser      bool           `json:"is_liked_by_user"`
+	IsRepostedByUser   bool           `json:"is_reposted_by_user"`
+	IsBookmarkedByUser bool           `json:"is_bookmarked_by_user"`
+	Hashtags           []string       `json:"hashtags,omitempty"`
+	Mentions           []string       `json:"mentions,omitempty"`
 }
 
 // AuthorSummary represents basic author information
@@ -130,11 +130,11 @@ type RepostRequest struct {
 
 // PostFilter represents post filtering options
 type PostFilter struct {
-	AuthorID   *uuid.UUID `form:"author_id"`
-	Type       *PostType  `form:"type"`
+	AuthorID   *uuid.UUID      `form:"author_id"`
+	Type       *PostType       `form:"type"`
 	Visibility *PostVisibility `form:"visibility"`
-	Limit      int        `form:"limit"`
-	Offset     int        `form:"offset"`
+	Limit      int             `form:"limit"`
+	Offset     int             `form:"offset"`
 }
 
 // PostResponse represents the API response format for posts (Flutter-compatible)

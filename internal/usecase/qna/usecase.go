@@ -11,12 +11,12 @@ import (
 )
 
 var (
-	ErrQnANotFound      = errors.New("Q&A not found")
-	ErrEventNotFound    = errors.New("event not found")
-	ErrUnauthorized     = errors.New("unauthorized")
-	ErrAlreadyUpvoted   = errors.New("already upvoted")
-	ErrNotUpvoted       = errors.New("not upvoted")
-	ErrAlreadyAnswered  = errors.New("question already answered")
+	ErrQnANotFound     = errors.New("Q&A not found")
+	ErrEventNotFound   = errors.New("event not found")
+	ErrUnauthorized    = errors.New("unauthorized")
+	ErrAlreadyUpvoted  = errors.New("already upvoted")
+	ErrNotUpvoted      = errors.New("not upvoted")
+	ErrAlreadyAnswered = errors.New("question already answered")
 )
 
 // Usecase handles Q&A business logic
@@ -43,14 +43,14 @@ func (uc *Usecase) AskQuestion(ctx context.Context, userID uuid.UUID, req *qna.C
 
 	// Create Q&A
 	newQnA := &qna.QnA{
-		ID:         uuid.New(),
-		EventID:    req.EventID,
-		Question:   req.Question,
-		AskedByID:  userID,
-		AskedAt:    time.Now(),
-		Upvotes:    0,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		ID:        uuid.New(),
+		EventID:   req.EventID,
+		Question:  req.Question,
+		AskedByID: userID,
+		AskedAt:   time.Now(),
+		Upvotes:   0,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	if err := uc.qnaRepo.Create(ctx, newQnA); err != nil {

@@ -72,22 +72,22 @@ type Event struct {
 // EventWithDetails includes additional event information
 type EventWithDetails struct {
 	Event
-	HostName        string    `json:"host_name" db:"host_name"`
-	HostAvatarURL   *string   `json:"host_avatar_url" db:"host_avatar_url"`
-	ImageURLs       []string  `json:"image_urls" db:"-"`
-	AttendeesCount  int       `json:"attendees_count" db:"attendees_count"`
-	IsUserAttending bool      `json:"is_user_attending" db:"is_user_attending"`
-	IsUserHost      bool      `json:"is_user_host" db:"is_user_host"`
-	Distance        *float64  `json:"distance,omitempty" db:"distance"` // Distance in km from user
+	HostName        string   `json:"host_name" db:"host_name"`
+	HostAvatarURL   *string  `json:"host_avatar_url" db:"host_avatar_url"`
+	ImageURLs       []string `json:"image_urls" db:"-"`
+	AttendeesCount  int      `json:"attendees_count" db:"attendees_count"`
+	IsUserAttending bool     `json:"is_user_attending" db:"is_user_attending"`
+	IsUserHost      bool     `json:"is_user_host" db:"is_user_host"`
+	Distance        *float64 `json:"distance,omitempty" db:"distance"` // Distance in km from user
 }
 
 // EventAttendee represents an event attendee
 type EventAttendee struct {
-	ID        uuid.UUID       `json:"id" db:"id"`
-	EventID   uuid.UUID       `json:"event_id" db:"event_id"`
-	UserID    uuid.UUID       `json:"user_id" db:"user_id"`
-	JoinedAt  time.Time       `json:"joined_at" db:"joined_at"`
-	Status    AttendeeStatus  `json:"status" db:"status"`
+	ID       uuid.UUID      `json:"id" db:"id"`
+	EventID  uuid.UUID      `json:"event_id" db:"event_id"`
+	UserID   uuid.UUID      `json:"user_id" db:"user_id"`
+	JoinedAt time.Time      `json:"joined_at" db:"joined_at"`
+	Status   AttendeeStatus `json:"status" db:"status"`
 }
 
 // AttendeeStatus represents the status of an attendee
@@ -129,20 +129,20 @@ type CreateEventRequest struct {
 
 // UpdateEventRequest represents event update data
 type UpdateEventRequest struct {
-	Title            *string        `json:"title,omitempty" binding:"omitempty,min=3,max=100"`
-	Description      *string        `json:"description,omitempty" binding:"omitempty,min=10"`
-	Category         *EventCategory `json:"category,omitempty"`
-	StartTime        *time.Time     `json:"start_time,omitempty"`
-	EndTime          *time.Time     `json:"end_time,omitempty"`
-	LocationName     *string        `json:"location_name,omitempty"`
-	LocationAddress  *string        `json:"location_address,omitempty"`
-	LocationLat      *float64       `json:"location_lat,omitempty" binding:"omitempty,min=-90,max=90"`
-	LocationLng      *float64       `json:"location_lng,omitempty" binding:"omitempty,min=-180,max=180"`
-	MaxAttendees     *int           `json:"max_attendees,omitempty" binding:"omitempty,min=2,max=1000"`
-	Price            *float64       `json:"price,omitempty" binding:"omitempty,min=0"`
-	Privacy          *EventPrivacy  `json:"privacy,omitempty"`
-	Requirements     *string        `json:"requirements,omitempty"`
-	Status           *EventStatus   `json:"status,omitempty"`
+	Title           *string        `json:"title,omitempty" binding:"omitempty,min=3,max=100"`
+	Description     *string        `json:"description,omitempty" binding:"omitempty,min=10"`
+	Category        *EventCategory `json:"category,omitempty"`
+	StartTime       *time.Time     `json:"start_time,omitempty"`
+	EndTime         *time.Time     `json:"end_time,omitempty"`
+	LocationName    *string        `json:"location_name,omitempty"`
+	LocationAddress *string        `json:"location_address,omitempty"`
+	LocationLat     *float64       `json:"location_lat,omitempty" binding:"omitempty,min=-90,max=90"`
+	LocationLng     *float64       `json:"location_lng,omitempty" binding:"omitempty,min=-180,max=180"`
+	MaxAttendees    *int           `json:"max_attendees,omitempty" binding:"omitempty,min=2,max=1000"`
+	Price           *float64       `json:"price,omitempty" binding:"omitempty,min=0"`
+	Privacy         *EventPrivacy  `json:"privacy,omitempty"`
+	Requirements    *string        `json:"requirements,omitempty"`
+	Status          *EventStatus   `json:"status,omitempty"`
 }
 
 // EventFilter represents event filtering options

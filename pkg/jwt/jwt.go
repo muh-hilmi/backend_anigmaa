@@ -22,9 +22,9 @@ type Claims struct {
 
 // JWTManager handles JWT operations
 type JWTManager struct {
-	secretKey         string
-	tokenDuration     time.Duration
-	refreshDuration   time.Duration
+	secretKey       string
+	tokenDuration   time.Duration
+	refreshDuration time.Duration
 }
 
 // NewJWTManager creates a new JWT manager

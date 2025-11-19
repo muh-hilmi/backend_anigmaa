@@ -11,15 +11,15 @@ import (
 )
 
 var (
-	ErrEventNotFound      = errors.New("event not found")
-	ErrUnauthorized       = errors.New("unauthorized - not event host")
-	ErrEventFull          = errors.New("event is full")
-	ErrAlreadyJoined      = errors.New("already joined this event")
-	ErrNotJoined          = errors.New("not joined this event")
-	ErrInvalidTimeRange   = errors.New("end time must be after start time")
-	ErrPastEvent          = errors.New("cannot create event in the past")
-	ErrCannotLeaveAsHost  = errors.New("host cannot leave their own event")
-	ErrCannotCancelPast   = errors.New("cannot cancel past event")
+	ErrEventNotFound     = errors.New("event not found")
+	ErrUnauthorized      = errors.New("unauthorized - not event host")
+	ErrEventFull         = errors.New("event is full")
+	ErrAlreadyJoined     = errors.New("already joined this event")
+	ErrNotJoined         = errors.New("not joined this event")
+	ErrInvalidTimeRange  = errors.New("end time must be after start time")
+	ErrPastEvent         = errors.New("cannot create event in the past")
+	ErrCannotLeaveAsHost = errors.New("host cannot leave their own event")
+	ErrCannotCancelPast  = errors.New("cannot cancel past event")
 )
 
 // Usecase handles event business logic

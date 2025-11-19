@@ -6,7 +6,10 @@
  *
  * Usage:
  * import api from './api-client.js';
- * const user = await api.auth.login(email, password);
+ * const user = await api.auth.loginWithGoogle(googleToken);
+ *
+ * Note: This app uses Google OAuth-only authentication.
+ * Traditional email/password authentication has been removed.
  */
 
 import axios from 'axios';
@@ -93,22 +96,8 @@ const clearTokens = () => {
 
 // API Methods
 const api = {
-  // Auth
+  // Auth (Google OAuth only)
   auth: {
-    register: async (userData) => {
-      const response = await apiClient.post('/auth/register', userData);
-      const { access_token, refresh_token } = response.data;
-      saveTokens(access_token, refresh_token);
-      return response.data;
-    },
-
-    login: async (email, password) => {
-      const response = await apiClient.post('/auth/login', { email, password });
-      const { access_token, refresh_token } = response.data;
-      saveTokens(access_token, refresh_token);
-      return response.data;
-    },
-
     loginWithGoogle: async (googleToken) => {
       const response = await apiClient.post('/auth/google', { token: googleToken });
       const { access_token, refresh_token } = response.data;
@@ -124,21 +113,21 @@ const api = {
       }
     },
 
-    forgotPassword: async (email) => {
-      const response = await apiClient.post('/auth/forgot-password', { email });
-      return response.data;
-    },
-
-    resetPassword: async (token, newPassword) => {
-      const response = await apiClient.post('/auth/reset-password', {
-        token,
-        password: newPassword,
-      });
+    refreshToken: async () => {
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+      const response = await apiClient.post('/auth/refresh', { refresh_token: refreshToken });
+      const { access_token } = response.data;
+      localStorage.setItem(TOKEN_KEY, access_token);
       return response.data;
     },
 
     verifyEmail: async (token) => {
       const response = await apiClient.post('/auth/verify-email', { token });
+      return response.data;
+    },
+
+    resendVerificationEmail: async () => {
+      const response = await apiClient.post('/auth/resend-verification');
       return response.data;
     },
   },
@@ -364,14 +353,18 @@ const api = {
     },
   },
 
-  // Profile (Public)
+  // Profile (DEPRECATED - username lookup removed)
+  // These endpoints will always return 404 since usernames no longer exist
+  // Use api.users.getUserById(userId) instead
   profile: {
     getByUsername: async (username) => {
+      console.warn('DEPRECATED: profile.getByUsername() - usernames no longer exist. Use users.getUserById() instead.');
       const response = await apiClient.get(`/profile/${username}`);
       return response.data;
     },
 
     getPosts: async (username, page = 1, limit = 20) => {
+      console.warn('DEPRECATED: profile.getPosts() - usernames no longer exist.');
       const response = await apiClient.get(`/profile/${username}/posts`, {
         params: { page, limit },
       });
@@ -379,6 +372,7 @@ const api = {
     },
 
     getEvents: async (username) => {
+      console.warn('DEPRECATED: profile.getEvents() - usernames no longer exist.');
       const response = await apiClient.get(`/profile/${username}/events`);
       return response.data;
     },

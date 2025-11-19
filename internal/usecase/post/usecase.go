@@ -14,17 +14,17 @@ import (
 )
 
 var (
-	ErrPostNotFound       = errors.New("post not found")
-	ErrCommentNotFound    = errors.New("comment not found")
-	ErrUnauthorized       = errors.New("unauthorized - not post/comment author")
-	ErrAlreadyLiked       = errors.New("already liked")
-	ErrNotLiked           = errors.New("not liked")
-	ErrAlreadyReposted    = errors.New("already reposted")
-	ErrNotReposted        = errors.New("not reposted")
-	ErrAlreadyBookmarked  = errors.New("already bookmarked")
-	ErrNotBookmarked      = errors.New("not bookmarked")
-	ErrCannotRepostOwn    = errors.New("cannot repost your own post")
-	ErrEventNotFound      = errors.New("attached event not found")
+	ErrPostNotFound      = errors.New("post not found")
+	ErrCommentNotFound   = errors.New("comment not found")
+	ErrUnauthorized      = errors.New("unauthorized - not post/comment author")
+	ErrAlreadyLiked      = errors.New("already liked")
+	ErrNotLiked          = errors.New("not liked")
+	ErrAlreadyReposted   = errors.New("already reposted")
+	ErrNotReposted       = errors.New("not reposted")
+	ErrAlreadyBookmarked = errors.New("already bookmarked")
+	ErrNotBookmarked     = errors.New("not bookmarked")
+	ErrCannotRepostOwn   = errors.New("cannot repost your own post")
+	ErrEventNotFound     = errors.New("attached event not found")
 )
 
 // Usecase handles post business logic

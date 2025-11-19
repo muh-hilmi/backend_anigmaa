@@ -20,11 +20,15 @@ func NewUserRepository(db *sqlx.DB) user.Repository {
 	return &userRepository{db: db}
 }
 
-// Create creates a new user
+// Create creates a new user (Google Auth only)
 func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 	query := `
-		INSERT INTO users (id, email, username, password_hash, name, bio, avatar_url, created_at, updated_at, is_verified, is_email_verified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO users (
+			id, email, name, bio, avatar_url,
+			phone, date_of_birth, gender, location, interests,
+			created_at, updated_at, is_verified, is_email_verified
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -32,10 +36,10 @@ func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
 	u.IsVerified = false
-	u.IsEmailVerified = false
 
 	return r.db.QueryRowContext(ctx, query,
-		u.ID, u.Email, u.Username, u.PasswordHash, u.Name, u.Bio, u.AvatarURL,
+		u.ID, u.Email, u.Name, u.Bio, u.AvatarURL,
+		u.Phone, u.DateOfBirth, u.Gender, u.Location, u.Interests,
 		u.CreatedAt, u.UpdatedAt, u.IsVerified, u.IsEmailVerified,
 	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
@@ -72,34 +76,28 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	return &u, nil
 }
 
-// GetByUsername gets a user by username
+// GetByUsername is deprecated - Google Auth only, no usernames
+// Kept for backwards compatibility but will always return not found
 func (r *userRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
-	var u user.User
-	query := `SELECT * FROM users WHERE username = $1`
-
-	err := r.db.GetContext(ctx, &u, query, username)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &u, nil
+	return nil, fmt.Errorf("user not found")
 }
 
 // Update updates a user
 func (r *userRepository) Update(ctx context.Context, u *user.User) error {
 	query := `
 		UPDATE users
-		SET name = $1, username = $2, bio = $3, avatar_url = $4, updated_at = $5, last_login_at = $6, is_verified = $7, is_email_verified = $8
-		WHERE id = $9
+		SET name = $1, bio = $2, avatar_url = $3,
+			phone = $4, date_of_birth = $5, gender = $6, location = $7, interests = $8,
+			updated_at = $9, last_login_at = $10, is_verified = $11, is_email_verified = $12
+		WHERE id = $13
 	`
 
 	u.UpdatedAt = time.Now()
 
 	_, err := r.db.ExecContext(ctx, query,
-		u.Name, u.Username, u.Bio, u.AvatarURL, u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
+		u.Name, u.Bio, u.AvatarURL,
+		u.Phone, u.DateOfBirth, u.Gender, u.Location, u.Interests,
+		u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
 	)
 
 	return err
@@ -153,16 +151,10 @@ func (r *userRepository) GetProfile(ctx context.Context, userID uuid.UUID) (*use
 	return &profile, nil
 }
 
-// GetProfileByUsername gets a complete user profile by username
+// GetProfileByUsername is deprecated - Google Auth only, no usernames
+// Kept for backwards compatibility but will always return not found
 func (r *userRepository) GetProfileByUsername(ctx context.Context, username string) (*user.UserProfile, error) {
-	// Get user by username
-	u, err := r.GetByUsername(ctx, username)
-	if err != nil {
-		return nil, err
-	}
-
-	// Use GetProfile to get the complete profile
-	return r.GetProfile(ctx, u.ID)
+	return nil, fmt.Errorf("user not found")
 }
 
 // UpdateSettings updates user settings
@@ -414,7 +406,7 @@ func (r *userRepository) CountSearchResults(ctx context.Context, query string) (
 	sql := `
 		SELECT COUNT(*)
 		FROM users
-		WHERE (name ILIKE $1 OR username ILIKE $1 OR email ILIKE $1)
+		WHERE (name ILIKE $1 OR email ILIKE $1)
 	`
 	searchTerm := "%" + query + "%"
 	var count int
