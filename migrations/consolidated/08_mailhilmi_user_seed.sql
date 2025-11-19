@@ -15,10 +15,12 @@
 -- 1. CREATE MAILHILMI USER
 -- ============================================================================
 
-INSERT INTO users (id, email, password_hash, name, username, bio, avatar_url, is_verified, is_email_verified, last_login_at) VALUES
+INSERT INTO users (id, email, password_hash, name, username, bio, avatar_url, phone, date_of_birth, gender, location, interests, is_verified, is_email_verified, last_login_at) VALUES
 ('00000000-0000-0000-0000-000000000001', 'mailhilmi@anigmaa.com', '$2a$10$xyz...', 'Hilmi Mail', 'mailhilmi',
 'Full-stack developer | Coffee enthusiast ☕ | Tech community builder 🚀 | Jakarta, Indonesia 📍',
 'https://i.pravatar.cc/300?img=33',
+'08123456789', '1995-05-15', 'Laki-laki', 'Jakarta, Indonesia',
+ARRAY['Technology', 'Coffee', 'Music', 'Sports'],
 true, true, NOW() - INTERVAL '2 hours')
 ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
@@ -26,6 +28,11 @@ ON CONFLICT (id) DO UPDATE SET
     username = EXCLUDED.username,
     bio = EXCLUDED.bio,
     avatar_url = EXCLUDED.avatar_url,
+    phone = EXCLUDED.phone,
+    date_of_birth = EXCLUDED.date_of_birth,
+    gender = EXCLUDED.gender,
+    location = EXCLUDED.location,
+    interests = EXCLUDED.interests,
     is_verified = EXCLUDED.is_verified,
     is_email_verified = EXCLUDED.is_email_verified;
 

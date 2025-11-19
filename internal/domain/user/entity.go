@@ -10,11 +10,16 @@ import (
 type User struct {
 	ID              uuid.UUID  `json:"id" db:"id"`
 	Email           string     `json:"email" db:"email"`
-	Username        string     `json:"username" db:"username"`
-	PasswordHash    string     `json:"-" db:"password_hash"`
+	Username        *string    `json:"username,omitempty" db:"username"` // Nullable for Google auth users
+	PasswordHash    *string    `json:"-" db:"password_hash"`             // Nullable for Google auth users
 	Name            string     `json:"name" db:"name"`
 	Bio             *string    `json:"bio,omitempty" db:"bio"`
 	AvatarURL       *string    `json:"avatar_url,omitempty" db:"avatar_url"`
+	Phone           *string    `json:"phone,omitempty" db:"phone"`
+	DateOfBirth     *time.Time `json:"date_of_birth,omitempty" db:"date_of_birth"`
+	Gender          *string    `json:"gender,omitempty" db:"gender"`
+	Location        *string    `json:"location,omitempty" db:"location"`
+	Interests       []string   `json:"interests" db:"interests"` // PostgreSQL text array
 	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at" db:"updated_at"`
 	LastLoginAt     *time.Time `json:"last_login_at,omitempty" db:"last_login_at"`
@@ -35,15 +40,15 @@ type UserSettings struct {
 
 // UserStats contains user statistics
 type UserStats struct {
-	UserID                  uuid.UUID `json:"user_id" db:"user_id"`
-	EventsAttended          int       `json:"events_attended" db:"events_attended"`
-	EventsCreated           int       `json:"events_created" db:"events_created"`
-	FollowersCount          int       `json:"followers_count" db:"followers_count"`
-	FollowingCount          int       `json:"following_count" db:"following_count"`
-	ReviewsGiven            int       `json:"reviews_given" db:"reviews_given"`
-	AverageRating           float64   `json:"average_rating" db:"average_rating"`
-	PostsCount              int       `json:"posts_count" db:"posts_count"`
-	InvitesSuccessfulCount  int       `json:"invites_successful_count" db:"invites_successful_count"`
+	UserID                 uuid.UUID `json:"user_id" db:"user_id"`
+	EventsAttended         int       `json:"events_attended" db:"events_attended"`
+	EventsCreated          int       `json:"events_created" db:"events_created"`
+	FollowersCount         int       `json:"followers_count" db:"followers_count"`
+	FollowingCount         int       `json:"following_count" db:"following_count"`
+	ReviewsGiven           int       `json:"reviews_given" db:"reviews_given"`
+	AverageRating          float64   `json:"average_rating" db:"average_rating"`
+	PostsCount             int       `json:"posts_count" db:"posts_count"`
+	InvitesSuccessfulCount int       `json:"invites_successful_count" db:"invites_successful_count"`
 }
 
 // UserPrivacy contains privacy settings
@@ -88,10 +93,13 @@ type LoginRequest struct {
 
 // UpdateProfileRequest represents profile update data
 type UpdateProfileRequest struct {
-	Name      *string `json:"name,omitempty" binding:"omitempty,min=2"`
-	Username  *string `json:"username,omitempty" binding:"omitempty,min=3,max=50,alphanum"`
-	Bio       *string `json:"bio,omitempty"`
-	AvatarURL *string `json:"avatar_url,omitempty"`
+	Bio         *string    `json:"bio,omitempty" binding:"omitempty,max=150"`
+	AvatarURL   *string    `json:"avatar_url,omitempty"`
+	Phone       *string    `json:"phone,omitempty" binding:"omitempty,numeric,min=10,max=15"`
+	DateOfBirth *time.Time `json:"date_of_birth,omitempty"`
+	Gender      *string    `json:"gender,omitempty" binding:"omitempty,oneof='Laki-laki' 'Perempuan' 'Lainnya' 'Prefer not to say'"`
+	Location    *string    `json:"location,omitempty"`
+	Interests   []string   `json:"interests,omitempty" binding:"omitempty,max=20,dive,min=1"`
 }
 
 // UpdateSettingsRequest represents settings update data
@@ -117,31 +125,54 @@ type ChangePasswordRequest struct {
 
 // ProfileResponse represents public profile data for API response
 type ProfileResponse struct {
-	ID                      uuid.UUID  `json:"id"`
-	Username                string     `json:"username"`
-	Name                    string     `json:"name"`
-	Bio                     *string    `json:"bio,omitempty"`
-	AvatarURL               *string    `json:"avatar_url,omitempty"`
-	IsVerified              bool       `json:"is_verified"`
-	CreatedAt               time.Time  `json:"created_at"`
-	FollowersCount          int        `json:"followers_count"`
-	FollowingCount          int        `json:"following_count"`
-	EventsCreated           int        `json:"events_created"`
-	PostsCount              int        `json:"posts_count"`
-	InvitesSuccessfulCount  int        `json:"invites_successful_count"`
-	ShareLink               string     `json:"share_link"`
+	ID                     uuid.UUID  `json:"id"`
+	Name                   string     `json:"name"`
+	Bio                    *string    `json:"bio,omitempty"`
+	AvatarURL              *string    `json:"avatar_url,omitempty"`
+	Phone                  *string    `json:"phone,omitempty"`
+	DateOfBirth            *time.Time `json:"date_of_birth,omitempty"`
+	Gender                 *string    `json:"gender,omitempty"`
+	Location               *string    `json:"location,omitempty"`
+	Interests              []string   `json:"interests"`
+	IsVerified             bool       `json:"is_verified"`
+	IsEmailVerified        bool       `json:"is_email_verified"`
+	CreatedAt              time.Time  `json:"created_at"`
+	FollowersCount         int        `json:"followers_count"`
+	FollowingCount         int        `json:"following_count"`
+	EventsCreated          int        `json:"events_created"`
+	PostsCount             int        `json:"posts_count"`
+	InvitesSuccessfulCount int        `json:"invites_successful_count"`
+	ShareLink              string     `json:"share_link"`
 }
 
 // ToProfileResponse converts UserProfile to ProfileResponse
 func (up *UserProfile) ToProfileResponse(baseURL string) ProfileResponse {
-	shareLink := baseURL + "/@" + up.User.Username
+	// Generate share link using username if available, otherwise use user ID
+	var shareLink string
+	if up.User.Username != nil && *up.User.Username != "" {
+		shareLink = baseURL + "/@" + *up.User.Username
+	} else {
+		shareLink = baseURL + "/user/" + up.User.ID.String()
+	}
+
+	// Initialize empty interests array if nil
+	interests := up.User.Interests
+	if interests == nil {
+		interests = []string{}
+	}
+
 	return ProfileResponse{
 		ID:                     up.User.ID,
-		Username:               up.User.Username,
 		Name:                   up.User.Name,
 		Bio:                    up.User.Bio,
 		AvatarURL:              up.User.AvatarURL,
+		Phone:                  up.User.Phone,
+		DateOfBirth:            up.User.DateOfBirth,
+		Gender:                 up.User.Gender,
+		Location:               up.User.Location,
+		Interests:              interests,
 		IsVerified:             up.User.IsVerified,
+		IsEmailVerified:        up.User.IsEmailVerified,
 		CreatedAt:              up.User.CreatedAt,
 		FollowersCount:         up.Stats.FollowersCount,
 		FollowingCount:         up.Stats.FollowingCount,

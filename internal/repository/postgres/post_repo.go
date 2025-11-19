@@ -151,9 +151,9 @@ func (r *postRepository) GetWithDetails(ctx context.Context, postID, userID uuid
 	// Populate attached event if exists
 	if eventID != nil && eventTitle != nil {
 		eventSummary := &post.EventSummary{
-			ID:       *eventID,
-			Title:    *eventTitle,
-			IsFree:   *eventIsFree,
+			ID:     *eventID,
+			Title:  *eventTitle,
+			IsFree: *eventIsFree,
 		}
 
 		// Set basic fields
@@ -393,9 +393,9 @@ func (r *postRepository) GetFeed(ctx context.Context, userID uuid.UUID, limit, o
 		// Populate attached event if exists
 		if eventID != nil && eventTitle != nil {
 			eventSummary := &post.EventSummary{
-				ID:       *eventID,
-				Title:    *eventTitle,
-				IsFree:   *eventIsFree,
+				ID:     *eventID,
+				Title:  *eventTitle,
+				IsFree: *eventIsFree,
 			}
 
 			// Set basic fields
@@ -564,9 +564,9 @@ func (r *postRepository) GetUserPosts(ctx context.Context, authorID, viewerID uu
 		// Populate attached event if exists
 		if eventID != nil && eventTitle != nil {
 			eventSummary := &post.EventSummary{
-				ID:       *eventID,
-				Title:    *eventTitle,
-				IsFree:   *eventIsFree,
+				ID:     *eventID,
+				Title:  *eventTitle,
+				IsFree: *eventIsFree,
 			}
 
 			// Set basic fields

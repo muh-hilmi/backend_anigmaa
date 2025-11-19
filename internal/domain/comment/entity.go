@@ -21,11 +21,11 @@ type Comment struct {
 // CommentWithDetails includes additional comment information
 type CommentWithDetails struct {
 	Comment
-	AuthorName       string      `json:"author_name"`
-	AuthorAvatarURL  *string     `json:"author_avatar_url"`
-	AuthorIsVerified bool        `json:"author_is_verified"`
-	IsLikedByUser    bool        `json:"is_liked_by_user"`
-	RepliesCount     int         `json:"replies_count"`
+	AuthorName       string               `json:"author_name"`
+	AuthorAvatarURL  *string              `json:"author_avatar_url"`
+	AuthorIsVerified bool                 `json:"author_is_verified"`
+	IsLikedByUser    bool                 `json:"is_liked_by_user"`
+	RepliesCount     int                  `json:"replies_count"`
 	Replies          []CommentWithDetails `json:"replies,omitempty"`
 }
 

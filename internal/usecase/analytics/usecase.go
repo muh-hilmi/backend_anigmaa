@@ -32,36 +32,36 @@ func NewUsecase(eventRepo event.Repository, ticketRepo ticket.Repository) *Useca
 
 // EventAnalytics represents comprehensive analytics for a single event
 type EventAnalytics struct {
-	EventID          uuid.UUID              `json:"event_id"`
-	EventTitle       string                 `json:"event_title"`
-	EventStatus      string                 `json:"event_status"`
-	StartTime        time.Time              `json:"start_time"`
-	EndTime          time.Time              `json:"end_time"`
-	Price            *float64               `json:"price"`
-	IsFree           bool                   `json:"is_free"`
-	MaxAttendees     int                    `json:"max_attendees"`
-	TicketsSold      int                    `json:"tickets_sold"`
-	TicketsCheckedIn int                    `json:"tickets_checked_in"`
-	Revenue          RevenueStats           `json:"revenue"`
-	Transactions     TransactionStats       `json:"transactions"`
-	AttendanceRate   float64                `json:"attendance_rate"` // Percentage of tickets sold vs max attendees
-	CheckInRate      float64                `json:"check_in_rate"`   // Percentage of checked in vs tickets sold
-	PaymentMethods   []PaymentMethodStats   `json:"payment_methods"`
-	TimelineStats    []TimelineStats        `json:"timeline_stats"` // Sales over time (daily)
+	EventID          uuid.UUID            `json:"event_id"`
+	EventTitle       string               `json:"event_title"`
+	EventStatus      string               `json:"event_status"`
+	StartTime        time.Time            `json:"start_time"`
+	EndTime          time.Time            `json:"end_time"`
+	Price            *float64             `json:"price"`
+	IsFree           bool                 `json:"is_free"`
+	MaxAttendees     int                  `json:"max_attendees"`
+	TicketsSold      int                  `json:"tickets_sold"`
+	TicketsCheckedIn int                  `json:"tickets_checked_in"`
+	Revenue          RevenueStats         `json:"revenue"`
+	Transactions     TransactionStats     `json:"transactions"`
+	AttendanceRate   float64              `json:"attendance_rate"` // Percentage of tickets sold vs max attendees
+	CheckInRate      float64              `json:"check_in_rate"`   // Percentage of checked in vs tickets sold
+	PaymentMethods   []PaymentMethodStats `json:"payment_methods"`
+	TimelineStats    []TimelineStats      `json:"timeline_stats"` // Sales over time (daily)
 }
 
 // RevenueStats represents revenue statistics
 type RevenueStats struct {
-	TotalRevenue     float64 `json:"total_revenue"`      // Total successful payments
-	PendingRevenue   float64 `json:"pending_revenue"`    // Pending payments
-	RefundedRevenue  float64 `json:"refunded_revenue"`   // Total refunds
-	ExpectedRevenue  float64 `json:"expected_revenue"`   // If all tickets sold
-	NetRevenue       float64 `json:"net_revenue"`        // Total - Refunded
+	TotalRevenue    float64 `json:"total_revenue"`    // Total successful payments
+	PendingRevenue  float64 `json:"pending_revenue"`  // Pending payments
+	RefundedRevenue float64 `json:"refunded_revenue"` // Total refunds
+	ExpectedRevenue float64 `json:"expected_revenue"` // If all tickets sold
+	NetRevenue      float64 `json:"net_revenue"`      // Total - Refunded
 }
 
 // TransactionStats represents transaction statistics
 type TransactionStats struct {
-	TotalTransactions     int `json:"total_transactions"`
+	TotalTransactions      int `json:"total_transactions"`
 	SuccessfulTransactions int `json:"successful_transactions"`
 	PendingTransactions    int `json:"pending_transactions"`
 	FailedTransactions     int `json:"failed_transactions"`
@@ -70,75 +70,75 @@ type TransactionStats struct {
 
 // PaymentMethodStats represents payment method breakdown
 type PaymentMethodStats struct {
-	Method       string  `json:"method"`
-	Count        int     `json:"count"`
-	TotalAmount  float64 `json:"total_amount"`
-	Percentage   float64 `json:"percentage"` // Percentage of total transactions
+	Method      string  `json:"method"`
+	Count       int     `json:"count"`
+	TotalAmount float64 `json:"total_amount"`
+	Percentage  float64 `json:"percentage"` // Percentage of total transactions
 }
 
 // TimelineStats represents sales statistics over time
 type TimelineStats struct {
-	Date          time.Time `json:"date"`
-	TicketsSold   int       `json:"tickets_sold"`
-	Revenue       float64   `json:"revenue"`
-	Transactions  int       `json:"transactions"`
+	Date         time.Time `json:"date"`
+	TicketsSold  int       `json:"tickets_sold"`
+	Revenue      float64   `json:"revenue"`
+	Transactions int       `json:"transactions"`
 }
 
 // TransactionDetail represents detailed transaction information
 type TransactionDetail struct {
-	TransactionID   string     `json:"transaction_id"`
-	TicketID        uuid.UUID  `json:"ticket_id"`
-	BuyerName       string     `json:"buyer_name"`        // Anonymized: "John D."
-	BuyerEmail      string     `json:"buyer_email"`       // Anonymized: "j***@example.com"
-	Amount          float64    `json:"amount"`
-	PaymentMethod   string     `json:"payment_method"`
-	Status          string     `json:"status"`
-	PurchasedAt     time.Time  `json:"purchased_at"`
-	CompletedAt     *time.Time `json:"completed_at"`
-	IsCheckedIn     bool       `json:"is_checked_in"`
-	CheckedInAt     *time.Time `json:"checked_in_at"`
+	TransactionID string     `json:"transaction_id"`
+	TicketID      uuid.UUID  `json:"ticket_id"`
+	BuyerName     string     `json:"buyer_name"`  // Anonymized: "John D."
+	BuyerEmail    string     `json:"buyer_email"` // Anonymized: "j***@example.com"
+	Amount        float64    `json:"amount"`
+	PaymentMethod string     `json:"payment_method"`
+	Status        string     `json:"status"`
+	PurchasedAt   time.Time  `json:"purchased_at"`
+	CompletedAt   *time.Time `json:"completed_at"`
+	IsCheckedIn   bool       `json:"is_checked_in"`
+	CheckedInAt   *time.Time `json:"checked_in_at"`
 }
 
 // HostRevenueSummary represents overall revenue summary for a host
 type HostRevenueSummary struct {
-	HostID              uuid.UUID              `json:"host_id"`
-	TotalEvents         int                    `json:"total_events"`
-	CompletedEvents     int                    `json:"completed_events"`
-	UpcomingEvents      int                    `json:"upcoming_events"`
-	TotalTicketsSold    int                    `json:"total_tickets_sold"`
-	TotalRevenue        float64                `json:"total_revenue"`
-	TotalRefunded       float64                `json:"total_refunded"`
-	NetRevenue          float64                `json:"net_revenue"`
-	AverageTicketPrice  float64                `json:"average_ticket_price"`
-	TopEvent            *EventRevenueSummary   `json:"top_event"` // Highest revenue event
-	RevenueByMonth      []MonthlyRevenue       `json:"revenue_by_month"`
-	RevenueByCategory   []CategoryRevenue      `json:"revenue_by_category"`
+	HostID             uuid.UUID            `json:"host_id"`
+	TotalEvents        int                  `json:"total_events"`
+	CompletedEvents    int                  `json:"completed_events"`
+	UpcomingEvents     int                  `json:"upcoming_events"`
+	TotalTicketsSold   int                  `json:"total_tickets_sold"`
+	TotalRevenue       float64              `json:"total_revenue"`
+	TotalRefunded      float64              `json:"total_refunded"`
+	NetRevenue         float64              `json:"net_revenue"`
+	AverageTicketPrice float64              `json:"average_ticket_price"`
+	TopEvent           *EventRevenueSummary `json:"top_event"` // Highest revenue event
+	RevenueByMonth     []MonthlyRevenue     `json:"revenue_by_month"`
+	RevenueByCategory  []CategoryRevenue    `json:"revenue_by_category"`
 }
 
 // EventRevenueSummary represents summary of an event with revenue
 type EventRevenueSummary struct {
-	EventID         uuid.UUID  `json:"event_id"`
-	Title           string     `json:"title"`
-	Category        string     `json:"category"`
-	Status          string     `json:"status"`
-	StartTime       time.Time  `json:"start_time"`
-	Price           *float64   `json:"price"`
-	IsFree          bool       `json:"is_free"`
-	MaxAttendees    int        `json:"max_attendees"`
-	TicketsSold     int        `json:"tickets_sold"`
-	Revenue         float64    `json:"revenue"`
-	RefundedAmount  float64    `json:"refunded_amount"`
-	NetRevenue      float64    `json:"net_revenue"`
-	FillRate        float64    `json:"fill_rate"` // Percentage of capacity filled
+	EventID        uuid.UUID `json:"event_id"`
+	Title          string    `json:"title"`
+	Category       string    `json:"category"`
+	Status         string    `json:"status"`
+	StartTime      time.Time `json:"start_time"`
+	Price          *float64  `json:"price"`
+	IsFree         bool      `json:"is_free"`
+	MaxAttendees   int       `json:"max_attendees"`
+	TicketsSold    int       `json:"tickets_sold"`
+	Revenue        float64   `json:"revenue"`
+	RefundedAmount float64   `json:"refunded_amount"`
+	NetRevenue     float64   `json:"net_revenue"`
+	FillRate       float64   `json:"fill_rate"` // Percentage of capacity filled
 }
 
 // MonthlyRevenue represents revenue for a specific month
 type MonthlyRevenue struct {
-	Year          int     `json:"year"`
-	Month         int     `json:"month"`
-	EventsCount   int     `json:"events_count"`
-	TicketsSold   int     `json:"tickets_sold"`
-	Revenue       float64 `json:"revenue"`
+	Year        int     `json:"year"`
+	Month       int     `json:"month"`
+	EventsCount int     `json:"events_count"`
+	TicketsSold int     `json:"tickets_sold"`
+	Revenue     float64 `json:"revenue"`
 }
 
 // CategoryRevenue represents revenue by event category
@@ -169,19 +169,19 @@ func (uc *Usecase) GetEventAnalytics(ctx context.Context, eventID, hostID uuid.U
 
 	// Initialize analytics
 	analytics := &EventAnalytics{
-		EventID:     evt.ID,
-		EventTitle:  evt.Title,
-		EventStatus: string(evt.Status),
-		StartTime:   evt.StartTime,
-		EndTime:     evt.EndTime,
-		Price:       evt.Price,
-		IsFree:      evt.IsFree,
-		MaxAttendees: evt.MaxAttendees,
-		TicketsSold: evt.TicketsSold,
-		Revenue: RevenueStats{},
-		Transactions: TransactionStats{},
+		EventID:        evt.ID,
+		EventTitle:     evt.Title,
+		EventStatus:    string(evt.Status),
+		StartTime:      evt.StartTime,
+		EndTime:        evt.EndTime,
+		Price:          evt.Price,
+		IsFree:         evt.IsFree,
+		MaxAttendees:   evt.MaxAttendees,
+		TicketsSold:    evt.TicketsSold,
+		Revenue:        RevenueStats{},
+		Transactions:   TransactionStats{},
 		PaymentMethods: []PaymentMethodStats{},
-		TimelineStats: []TimelineStats{},
+		TimelineStats:  []TimelineStats{},
 	}
 
 	// Calculate statistics
@@ -317,7 +317,7 @@ func (uc *Usecase) GetEventTransactions(ctx context.Context, eventID, hostID uui
 			detail := TransactionDetail{
 				TransactionID: txn.TransactionID,
 				TicketID:      tkt.ID,
-				BuyerName:     anonymizeName("User"), // Would fetch from user table
+				BuyerName:     anonymizeName("User"),              // Would fetch from user table
 				BuyerEmail:    anonymizeEmail("user@example.com"), // Would fetch from user table
 				Amount:        txn.Amount,
 				PaymentMethod: txn.PaymentMethod,
@@ -393,8 +393,8 @@ func (uc *Usecase) GetHostRevenueSummary(ctx context.Context, hostID uuid.UUID, 
 	}
 
 	summary := &HostRevenueSummary{
-		HostID: hostID,
-		RevenueByMonth: []MonthlyRevenue{},
+		HostID:            hostID,
+		RevenueByMonth:    []MonthlyRevenue{},
 		RevenueByCategory: []CategoryRevenue{},
 	}
 

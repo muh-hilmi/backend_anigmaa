@@ -19,7 +19,7 @@ var (
 // MatchPreferences represents user preferences for event matching
 type MatchPreferences struct {
 	Categories   []event.EventCategory `json:"categories,omitempty"`
-	MaxDistance  *float64              `json:"max_distance,omitempty"`   // in kilometers
+	MaxDistance  *float64              `json:"max_distance,omitempty"` // in kilometers
 	MaxPrice     *float64              `json:"max_price,omitempty"`
 	FreeOnly     bool                  `json:"free_only"`
 	StartTimeMin *time.Time            `json:"start_time_min,omitempty"`
@@ -29,9 +29,9 @@ type MatchPreferences struct {
 // MatchResult represents a matched event with score
 type MatchResult struct {
 	Event    *event.EventWithDetails `json:"event"`
-	Score    float64                 `json:"score"`     // 0-100
+	Score    float64                 `json:"score"`              // 0-100
 	Distance *float64                `json:"distance,omitempty"` // in kilometers
-	Reason   string                  `json:"reason"`    // Why this event was matched
+	Reason   string                  `json:"reason"`             // Why this event was matched
 }
 
 // Matcher handles event discovery and matching logic
@@ -224,7 +224,7 @@ func shuffleWithBias(results []MatchResult) {
 		// Select random weighted position
 		// Use a simple pseudo-random based on current time and index
 		// In production, use crypto/rand or math/rand with seed
-		randomValue := float64((time.Now().UnixNano() + int64(i*7)) % 1000) / 1000.0
+		randomValue := float64((time.Now().UnixNano()+int64(i*7))%1000) / 1000.0
 		target := randomValue * totalWeight
 
 		// Find the item that corresponds to this weight

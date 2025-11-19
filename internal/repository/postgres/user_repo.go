@@ -23,8 +23,12 @@ func NewUserRepository(db *sqlx.DB) user.Repository {
 // Create creates a new user
 func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 	query := `
-		INSERT INTO users (id, email, username, password_hash, name, bio, avatar_url, created_at, updated_at, is_verified, is_email_verified)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO users (
+			id, email, username, password_hash, name, bio, avatar_url,
+			phone, date_of_birth, gender, location, interests,
+			created_at, updated_at, is_verified, is_email_verified
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -32,10 +36,10 @@ func (r *userRepository) Create(ctx context.Context, u *user.User) error {
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
 	u.IsVerified = false
-	u.IsEmailVerified = false
 
 	return r.db.QueryRowContext(ctx, query,
 		u.ID, u.Email, u.Username, u.PasswordHash, u.Name, u.Bio, u.AvatarURL,
+		u.Phone, u.DateOfBirth, u.Gender, u.Location, u.Interests,
 		u.CreatedAt, u.UpdatedAt, u.IsVerified, u.IsEmailVerified,
 	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
@@ -92,14 +96,18 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*u
 func (r *userRepository) Update(ctx context.Context, u *user.User) error {
 	query := `
 		UPDATE users
-		SET name = $1, username = $2, bio = $3, avatar_url = $4, updated_at = $5, last_login_at = $6, is_verified = $7, is_email_verified = $8
-		WHERE id = $9
+		SET name = $1, username = $2, bio = $3, avatar_url = $4,
+			phone = $5, date_of_birth = $6, gender = $7, location = $8, interests = $9,
+			updated_at = $10, last_login_at = $11, is_verified = $12, is_email_verified = $13
+		WHERE id = $14
 	`
 
 	u.UpdatedAt = time.Now()
 
 	_, err := r.db.ExecContext(ctx, query,
-		u.Name, u.Username, u.Bio, u.AvatarURL, u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
+		u.Name, u.Username, u.Bio, u.AvatarURL,
+		u.Phone, u.DateOfBirth, u.Gender, u.Location, u.Interests,
+		u.UpdatedAt, u.LastLoginAt, u.IsVerified, u.IsEmailVerified, u.ID,
 	)
 
 	return err
@@ -414,7 +422,7 @@ func (r *userRepository) CountSearchResults(ctx context.Context, query string) (
 	sql := `
 		SELECT COUNT(*)
 		FROM users
-		WHERE (name ILIKE $1 OR username ILIKE $1 OR email ILIKE $1)
+		WHERE (name ILIKE $1 OR email ILIKE $1 OR (username IS NOT NULL AND username ILIKE $1))
 	`
 	searchTerm := "%" + query + "%"
 	var count int

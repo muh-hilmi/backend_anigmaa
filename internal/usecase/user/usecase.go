@@ -23,16 +23,16 @@ import (
 )
 
 var (
-	ErrUserNotFound           = errors.New("user not found")
-	ErrEmailAlreadyExists     = errors.New("email already exists")
-	ErrUsernameAlreadyExists  = errors.New("username already exists")
-	ErrInvalidCredentials     = errors.New("invalid credentials")
-	ErrUnauthorized           = errors.New("unauthorized")
-	ErrAlreadyFollowing       = errors.New("already following this user")
-	ErrNotFollowing           = errors.New("not following this user")
-	ErrCannotFollowSelf       = errors.New("cannot follow yourself")
-	ErrInvalidToken           = errors.New("invalid or expired token")
-	ErrTokenAlreadyUsed       = errors.New("token has already been used")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrEmailAlreadyExists    = errors.New("email already exists")
+	ErrUsernameAlreadyExists = errors.New("username already exists")
+	ErrInvalidCredentials    = errors.New("invalid credentials")
+	ErrUnauthorized          = errors.New("unauthorized")
+	ErrAlreadyFollowing      = errors.New("already following this user")
+	ErrNotFollowing          = errors.New("not following this user")
+	ErrCannotFollowSelf      = errors.New("cannot follow yourself")
+	ErrInvalidToken          = errors.New("invalid or expired token")
+	ErrTokenAlreadyUsed      = errors.New("token has already been used")
 )
 
 // Usecase handles user business logic
@@ -55,10 +55,10 @@ func NewUsecase(userRepo user.Repository, authTokenRepo auth.Repository, jwtMana
 
 // AuthResponse represents authentication response
 type AuthResponse struct {
-	AccessToken  string      `json:"access_token"`
-	RefreshToken string      `json:"refresh_token"`
-	User         *user.User  `json:"user"`
-	ExpiresIn    int64       `json:"expires_in"` // seconds
+	AccessToken  string     `json:"access_token"`
+	RefreshToken string     `json:"refresh_token"`
+	User         *user.User `json:"user"`
+	ExpiresIn    int64      `json:"expires_in"` // seconds
 }
 
 // generateUsername creates a unique username from name
@@ -132,12 +132,14 @@ func (uc *Usecase) Register(ctx context.Context, req *user.RegisterRequest) (*Au
 
 	// Create user
 	now := time.Now()
+	emptyInterests := []string{} // Initialize empty interests array
 	newUser := &user.User{
 		ID:              uuid.New(),
 		Email:           req.Email,
-		Username:        username,
-		PasswordHash:    hashedPassword,
+		Username:        &username,
+		PasswordHash:    &hashedPassword,
 		Name:            req.Name,
+		Interests:       emptyInterests,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 		IsVerified:      false,
@@ -175,8 +177,13 @@ func (uc *Usecase) Login(ctx context.Context, req *user.LoginRequest) (*AuthResp
 		return nil, ErrInvalidCredentials
 	}
 
+	// Check if user has password (Google auth users don't have password)
+	if existingUser.PasswordHash == nil || *existingUser.PasswordHash == "" {
+		return nil, fmt.Errorf("this account uses Google Sign-In. Please login with Google")
+	}
+
 	// Verify password
-	if err := password.Verify(existingUser.PasswordHash, req.Password); err != nil {
+	if err := password.Verify(*existingUser.PasswordHash, req.Password); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
@@ -284,22 +291,40 @@ func (uc *Usecase) UpdateProfile(ctx context.Context, userID uuid.UUID, req *use
 	}
 
 	// Update fields if provided
-	if req.Name != nil {
-		existingUser.Name = *req.Name
-	}
-	if req.Username != nil {
-		// Check if username is already taken by another user
-		userByUsername, _ := uc.userRepo.GetByUsername(ctx, *req.Username)
-		if userByUsername != nil && userByUsername.ID != userID {
-			return nil, ErrUsernameAlreadyExists
-		}
-		existingUser.Username = *req.Username
-	}
+	// Note: Name and Email CANNOT be updated (from Google only)
 	if req.Bio != nil {
+		// Validate bio length (max 150 characters)
+		if len(*req.Bio) > 150 {
+			return nil, fmt.Errorf("bio must be at most 150 characters")
+		}
 		existingUser.Bio = req.Bio
 	}
 	if req.AvatarURL != nil {
 		existingUser.AvatarURL = req.AvatarURL
+	}
+	if req.Phone != nil {
+		existingUser.Phone = req.Phone
+	}
+	if req.DateOfBirth != nil {
+		// Validate age (must be 13+ years old)
+		age := time.Now().Year() - req.DateOfBirth.Year()
+		if age < 13 {
+			return nil, fmt.Errorf("user must be at least 13 years old")
+		}
+		existingUser.DateOfBirth = req.DateOfBirth
+	}
+	if req.Gender != nil {
+		existingUser.Gender = req.Gender
+	}
+	if req.Location != nil {
+		existingUser.Location = req.Location
+	}
+	if req.Interests != nil {
+		// Validate interests array (max 20 items)
+		if len(req.Interests) > 20 {
+			return nil, fmt.Errorf("interests must have at most 20 items")
+		}
+		existingUser.Interests = req.Interests
 	}
 
 	existingUser.UpdatedAt = time.Now()
@@ -477,8 +502,13 @@ func (uc *Usecase) ChangePassword(ctx context.Context, userID uuid.UUID, req *us
 		return ErrUserNotFound
 	}
 
+	// Check if user has password (Google auth users don't have password)
+	if existingUser.PasswordHash == nil || *existingUser.PasswordHash == "" {
+		return fmt.Errorf("this account uses Google Sign-In and doesn't have a password")
+	}
+
 	// Verify current password
-	if err := password.Verify(existingUser.PasswordHash, req.CurrentPassword); err != nil {
+	if err := password.Verify(*existingUser.PasswordHash, req.CurrentPassword); err != nil {
 		return ErrInvalidCredentials
 	}
 
@@ -489,7 +519,7 @@ func (uc *Usecase) ChangePassword(ctx context.Context, userID uuid.UUID, req *us
 	}
 
 	// Update password
-	existingUser.PasswordHash = hashedPassword
+	existingUser.PasswordHash = &hashedPassword
 	existingUser.UpdatedAt = time.Now()
 
 	return uc.userRepo.Update(ctx, existingUser)
@@ -552,29 +582,33 @@ func (uc *Usecase) LoginWithGoogle(ctx context.Context, req *user.GoogleAuthRequ
 
 	if err != nil {
 		// User doesn't exist, create new user
-		// Generate unique username
-		username, err := uc.generateUsername(ctx, googleInfo.Name, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate username: %w", err)
-		}
-
 		now := time.Now()
+		emptyInterests := []string{} // Initialize empty interests array
+
 		newUser := &user.User{
 			ID:              uuid.New(),
 			Email:           googleInfo.Email,
-			Username:        username,
-			PasswordHash:    "", // No password for Google auth users
+			Username:        nil, // No username for Google auth users
+			PasswordHash:    nil, // No password for Google auth users
 			Name:            googleInfo.Name,
 			AvatarURL:       &googleInfo.Picture,
+			Interests:       emptyInterests,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			LastLoginAt:     &now,
-			IsVerified:      true,
-			IsEmailVerified: bool(googleInfo.EmailVerified),
+			IsVerified:      false,
+			IsEmailVerified: false, // Always false for new users, they need to verify
 		}
 
 		if err := uc.userRepo.Create(ctx, newUser); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
+		}
+
+		// Send verification email for new users
+		_, err = uc.SendVerificationEmail(ctx, newUser.ID)
+		if err != nil {
+			// Log error but don't fail registration
+			// In production, you would log this error properly
 		}
 
 		existingUser = newUser
