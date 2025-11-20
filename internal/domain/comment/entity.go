@@ -21,12 +21,12 @@ type Comment struct {
 // CommentWithDetails includes additional comment information
 type CommentWithDetails struct {
 	Comment
-	AuthorName       string               `json:"author_name"`
-	AuthorAvatarURL  *string              `json:"author_avatar_url"`
-	AuthorIsVerified bool                 `json:"author_is_verified"`
-	IsLikedByUser    bool                 `json:"is_liked_by_user"`
-	RepliesCount     int                  `json:"replies_count"`
-	Replies          []CommentWithDetails `json:"replies,omitempty"`
+	AuthorName       string               `json:"author_name" db:"author_name"`
+	AuthorAvatarURL  *string              `json:"author_avatar_url" db:"author_avatar_url"`
+	AuthorIsVerified bool                 `json:"author_is_verified" db:"author_is_verified"`
+	IsLikedByUser    bool                 `json:"is_liked_by_user" db:"is_liked_by_user"`
+	RepliesCount     int                  `json:"replies_count" db:"replies_count"`
+	Replies          []CommentWithDetails `json:"replies,omitempty" db:"-"`
 }
 
 // CreateCommentRequest represents comment creation data

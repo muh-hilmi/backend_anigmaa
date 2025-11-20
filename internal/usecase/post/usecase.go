@@ -470,7 +470,7 @@ func (uc *Usecase) SharePost(ctx context.Context, postID, userID uuid.UUID, plat
 }
 
 // CreateComment creates a comment on a post
-func (uc *Usecase) CreateComment(ctx context.Context, authorID uuid.UUID, req *comment.CreateCommentRequest) (*comment.Comment, error) {
+func (uc *Usecase) CreateComment(ctx context.Context, authorID uuid.UUID, req *comment.CreateCommentRequest) (*comment.CommentWithDetails, error) {
 	// Check if post exists
 	_, err := uc.postRepo.GetByID(ctx, req.PostID)
 	if err != nil {
@@ -507,7 +507,22 @@ func (uc *Usecase) CreateComment(ctx context.Context, authorID uuid.UUID, req *c
 		// Log error but don't fail
 	}
 
-	return newComment, nil
+	// Fetch comment with details to include author info
+	commentWithDetails, err := uc.commentRepo.GetWithDetails(ctx, newComment.ID, authorID)
+	if err != nil {
+		// If we can't get details, return basic comment data with empty details
+		// This shouldn't happen but provides a fallback
+		return &comment.CommentWithDetails{
+			Comment:          *newComment,
+			AuthorName:       "",
+			AuthorAvatarURL:  nil,
+			AuthorIsVerified: false,
+			IsLikedByUser:    false,
+			RepliesCount:     0,
+		}, nil
+	}
+
+	return commentWithDetails, nil
 }
 
 // UpdateComment updates a comment

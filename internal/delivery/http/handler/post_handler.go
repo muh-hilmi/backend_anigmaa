@@ -579,7 +579,7 @@ func (h *PostHandler) AddComment(c *gin.Context) {
 	}
 
 	// Call usecase
-	newComment, err := h.postUsecase.CreateComment(c.Request.Context(), authorID, &req)
+	newCommentWithDetails, err := h.postUsecase.CreateComment(c.Request.Context(), authorID, &req)
 	if err != nil {
 		if err == postUsecase.ErrPostNotFound {
 			response.NotFound(c, "Post not found")
@@ -593,7 +593,7 @@ func (h *PostHandler) AddComment(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, "Comment added successfully", newComment)
+	response.Success(c, http.StatusCreated, "Comment added successfully", newCommentWithDetails)
 }
 
 // GetComments godoc

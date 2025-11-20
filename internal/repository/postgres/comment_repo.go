@@ -152,12 +152,6 @@ func (r *commentRepository) Delete(ctx context.Context, commentID uuid.UUID) err
 
 // GetByPost gets comments for a post
 func (r *commentRepository) GetByPost(ctx context.Context, postID, userID uuid.UUID, limit, offset int) ([]comment.CommentWithDetails, error) {
-	// CTO REVIEW: CRITICAL BUG - Field name mismatch causing comment avatars not to display
-	// Issue: Line 166 aliases as "author_avatar" but scan expects "author_avatar_url" (line 202)
-	// This mismatch causes avatar data to not populate correctly
-	// Impact: Comments display without user avatars, degraded UX
-	// Fix: Change "author_avatar" to "author_avatar_url" on line 166
-	// Priority: URGENT - Production blocker
 	query := `
 		SELECT
 			c.id,
@@ -169,7 +163,7 @@ func (r *commentRepository) GetByPost(ctx context.Context, postID, userID uuid.U
 			c.created_at,
 			c.updated_at,
 			u.name as author_name,
-			u.avatar_url as author_avatar,
+			u.avatar_url as author_avatar_url,
 			u.is_verified as author_is_verified,
 			COALESCE(
 				(SELECT COUNT(*) FROM likes
@@ -181,7 +175,7 @@ func (r *commentRepository) GetByPost(ctx context.Context, postID, userID uuid.U
 		FROM comments c
 		INNER JOIN users u ON c.author_id = u.id
 		WHERE c.post_id = $2
-		ORDER BY c.created_at DESC
+		ORDER BY c.likes_count DESC, c.created_at DESC
 		LIMIT $3 OFFSET $4
 	`
 
