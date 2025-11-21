@@ -70,10 +70,11 @@ type Follow struct {
 
 // UserProfile is a complete user profile with stats and settings
 type UserProfile struct {
-	User     User         `json:"user"`
-	Settings UserSettings `json:"settings"`
-	Stats    UserStats    `json:"stats"`
-	Privacy  UserPrivacy  `json:"privacy"`
+	User        User         `json:"user"`
+	Settings    UserSettings `json:"settings"`
+	Stats       UserStats    `json:"stats"`
+	Privacy     UserPrivacy  `json:"privacy"`
+	IsFollowing *bool        `json:"is_following,omitempty"` // nil if not applicable (e.g., own profile), true/false otherwise
 }
 
 // FlexibleTime can unmarshal from multiple date/datetime formats

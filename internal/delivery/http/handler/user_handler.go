@@ -156,6 +156,28 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		return
 	}
 
+	// Get current user ID from context (if authenticated)
+	currentUserIDStr, exists := middleware.GetUserID(c)
+	println("[DEBUG] GetUserByID - currentUserIDStr:", currentUserIDStr, "exists:", exists)
+	if exists {
+		currentUserID, err := uuid.Parse(currentUserIDStr)
+		println("[DEBUG] GetUserByID - currentUserID:", currentUserID.String(), "targetUserID:", userID.String(), "parseErr:", err)
+		if err == nil && currentUserID != userID {
+			// Check if current user is following this user
+			isFollowing, err := h.userUsecase.IsFollowing(c.Request.Context(), currentUserID, userID)
+			println("[DEBUG] GetUserByID - isFollowing:", isFollowing, "err:", err)
+			if err == nil {
+				profile.IsFollowing = &isFollowing
+				println("[DEBUG] GetUserByID - profile.IsFollowing set to:", *profile.IsFollowing)
+			}
+		} else if currentUserID == userID {
+			println("[DEBUG] GetUserByID - viewing own profile, leaving IsFollowing as nil")
+		}
+		// If viewing own profile or error checking, leave IsFollowing as nil
+	} else {
+		println("[DEBUG] GetUserByID - no current user in context")
+	}
+
 	response.Success(c, http.StatusOK, "User profile retrieved successfully", profile)
 }
 
